@@ -1,0 +1,107 @@
+../atac_dnase_pipelines/
+|-- adapter_trimmer.bds
+|-- #atac.bds#
+|-- atac.bds
+|-- ataqc
+|   |-- README.md
+|   |-- requirements.txt
+|   |-- run_ataqc_bds.sh
+|   |-- run_ataqc.py
+|   |-- run_ataqc.sh
+|   |-- run_ataqc_single_lib.py
+|   `-- run_setQC_multiQC.sh
+|-- bds.config
+|-- default.env
+|-- etc
+|   |-- broadPeak.as
+|   |-- gappedPeak.as
+|   `-- narrowPeak.as
+|-- examples
+|   |-- atac_shi_new2.sh
+|   |-- bfremin.sh
+|   |-- ENCODE
+|   |   `-- download_ENCODE_Snyder.py
+|   |-- example.sh
+|   `-- training-camp-2016.sh
+|-- html
+|   |-- jquery.treetable.css
+|   |-- jquery.treetable.js
+|   |-- jquery.treetable.theme.default.css
+|   `-- rpt_header.html
+|-- #install_dependencies.sh#
+|-- install_dependencies.sh
+|-- install_genome_data.sh
+|-- LICENSE.md
+|-- modules
+|   |-- #align_bowtie2.bds#
+|   |-- align_bowtie2.bds
+|   |-- align_etc.bds
+|   |-- align_multimapping.bds
+|   |-- align_trim_adapter.bds
+|   |-- ataqc.bds
+|   |-- callpeak_bigbed.bds
+|   |-- callpeak_blacklist_filter.bds
+|   |-- callpeak_filter.bds
+|   |-- callpeak_idr.bds
+|   |-- callpeak_macs2_atac.bds
+|   |-- callpeak_naive_overlap.bds
+|   |-- cluster.bds
+|   |-- conf.bds
+|   |-- ENCODE_accession.bds
+|   |-- env.bds
+|   |-- filetable.bds
+|   |-- git.bds
+|   |-- graphviz.bds
+|   |-- input_adapter.bds
+|   |-- input_bam.bds
+|   |-- input.bds
+|   |-- input_fastq.bds
+|   |-- input_peak.bds
+|   |-- input_tagalign.bds
+|   |-- log_parser.bds
+|   |-- module_template.bds
+|   |-- output.bds
+|   |-- parallel.bds
+|   |-- pipeline_template.bds
+|   |-- postalign_bam.bds
+|   |-- postalign_bed.bds
+|   |-- postalign_xcor.bds
+|   |-- report.bds
+|   |-- species.bds
+|   |-- string.bds
+|   `-- sys.bds
+|-- pipeline.html
+|-- pipeline.md
+|-- README.md
+|-- requirements_py3.txt
+|-- requirements.txt
+|-- species
+|   |-- epigen.conf
+|   `-- epigen.conf~
+|-- uninstall_dependencies.sh
+`-- utils
+    |-- assign_multimappers.py
+    |-- axt_dirfiles.py
+    |-- bds_scr
+    |-- bds_scr_5min
+    |-- broadpeak.py
+    |-- clusterGeneric
+    |   |-- kill.pl
+    |   |-- postMortemInfo.pl
+    |   |-- run.pl
+    |   `-- stat.pl
+    |-- detect_adapter.py
+    |-- gappedpeak.py
+    |-- get_read_length_from_fastq.py
+    |-- kill_scr
+    |-- narrowpeak_idr.py
+    |-- narrowpeak.py
+    |-- parse_summary_ENCODE_accession_recursively.py
+    |-- parse_summary_ENCODE_qc_recursively.py
+    |-- parse_summary_qc_recursively.py
+    |-- reassemble.py
+    |-- trimAdapters.py
+    |-- ucsc_ensGene.py
+    `-- ucsc_simplegene.py
+
+9 directories, 95 files

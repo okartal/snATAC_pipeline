@@ -19,6 +19,11 @@ $ scATAC -t 2 \
 		 -g hg19.fa \
 		 -m 500
 ```
+
+## conda install 
+
+
+
 ## Requirements
 
 - [bwa](https://github.com/lh3/bwa)

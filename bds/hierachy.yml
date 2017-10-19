@@ -1,0 +1,14 @@
+# ref:https://kundajelab.github.io/bds_pipeline_modules/programming.html
+
+conf.bds
+|-- species.bds 			# species definition, species specific parameters and functions to read species files
+|-- input_fastq.bds 		# parse cmd. line arg. or read config. file to get fastqs (-fastq ...)
+|-- input_bam.bds 		# parse cmd. line arg. or read config. file to get bams (-bam ...)
+|-- input_tagalign.bds  		# parse cmd. line arg. or read config. file to get tagaligns (-tag...)
+|-- input_peak.bds 		# parse cmd. line arg. or read config. file to get peaks (-peak ...)
+|-- input_adapter.bds 		# parse cmd. line arg. or read config. file to get adapters (-adapter ...)
+|-- align_multimapping.bds 	# multimapping parameter
+
+
+|-- ataqc
+|   |-- README.md
