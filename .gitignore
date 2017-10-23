@@ -5,4 +5,5 @@ bin/cluster.R
 barcodes/barcodes.*.txt
 barcodes/i7.*mm.txt
 barcodes/i5.*mm.txt
-
+.\#*
+\#*
