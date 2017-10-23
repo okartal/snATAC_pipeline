@@ -1,14 +1,30 @@
 # ref:https://kundajelab.github.io/bds_pipeline_modules/programming.html
 
 conf.bds
-|-- species.bds 			# species definition, species specific parameters and functions to read species files
-|-- input_fastq.bds 		# parse cmd. line arg. or read config. file to get fastqs (-fastq ...)
-|-- input_bam.bds 		# parse cmd. line arg. or read config. file to get bams (-bam ...)
-|-- input_tagalign.bds  		# parse cmd. line arg. or read config. file to get tagaligns (-tag...)
-|-- input_peak.bds 		# parse cmd. line arg. or read config. file to get peaks (-peak ...)
-|-- input_adapter.bds 		# parse cmd. line arg. or read config. file to get adapters (-adapter ...)
-|-- align_multimapping.bds 	# multimapping parameter
+|-- species.bds                 # species definition, species specific parameters and functions to read species files
+|-- input_raw_fastq.bds		# parse cmd. line arg. or read config. file to get raw fastqs (-fastq ..., before demultiplex)
+|-- input_fastq.bds		# parse cmd. line arg. or read config. file to get fastqs (-fastq ..., after demultiplex)
+|-- input_adapter.bds 		# parse cmd. line arg. or read config. file to get adapters (-adapter ..., )
+|-- cluster.bds 		# cluster information (kind of a cluster, max. memory, walltime)
+|   |-- env.bds			# shell (env. modules and conda) environment
+|-- output.bds                  # output directory and title, prefix
+
+[input_raw_fastq.bds, input_fastq.bds, input_adapter.bds]
+|-- input.bds                   # manages all input genomic file types (exp. replicate and controls) and endedness (SE/PE)
+
+[env.bds output.bds]
+|-- graphviz.bds 		# Graphviz diagram (SVG)
+
+[git.bds, parallel.bds, report.bds]
+|-- pipeline_template.bds 	# general pipeline template (all pipelines should start from including this)
 
 
-|-- ataqc
-|   |-- README.md
+[module_template.bds, species.bds] # for modules 
+|-- align_bwa.bds  		# map fastqs to get raw bam, bwa parameters, resource settings
+|-- align_trim_adapters.bds  	# map fastqs to get raw bam, bowtie2 parameters, bowtie2 resource settings
+|-- postalign_bed.bds 		# postalign functions for bed and tagaligns (including cross-corr. analysis)
+|-- callpeak_macs2.bds  	# peak calling with macs2 (macs2 functions for chipseq and atacseq)
+|-- callpeak_naive_overlap.bds 	# naive overlap on peaks called
+|-- callpeak_filter.bds  	# filter top peaks from peak files
+|-- callpeak_idr.bds  		# IDR and QC functions
+|-- signal.bds  		# signal track generation using deepTools (bamCoverage) and Anshul's align2rawsignal.
