@@ -1,4 +1,4 @@
-include "modules/pipeline.bds"
+sinclude "modules/pipeline.bds"
 include "modules/any_module_you_want_to_include.bds"
 
 //------------------------------------------------------------
@@ -18,6 +18,7 @@ void main() {
 	chk_input()
 	chk_adapters()            
 	align()
+        split_reads()
 	call_peaks()
         split_cells()
 	report()	
@@ -27,6 +28,10 @@ void main() {
 void init() {...}
 
 void chk_input() {...}
+
+/*************************************************************
+The alignment Part
+*************************************************************/
 
 void align() {
 
@@ -77,7 +82,7 @@ void align_PE( int rep, int nth_rep ) {
 	string bam_, align_log_, read_length_log, flagstat_qc_
 	string[] fastqs_pair1, fastqs_pair2
 
-	if ( is_input_fastq( rep ) ) {
+	if ( is_input_fastq( rep ) ) { 
 
 		fastqs_pair1 = get_fastq( 0, rep, 1 )
 		fastqs_pair2 = get_fastq( 0, rep, 2 )
@@ -153,6 +158,7 @@ void align_PE( int rep, int nth_rep ) {
 
 		flagstat_qc_ = samtools_flagstat_bam( bam_, qc_o_dir, group )
 		wait
+                
 		flagstat_qc{rep} = flagstat_qc_
 		add_file_to_table( flagstat_qc_, "QC and logs/$long/Bowtie2 map. flagstat log")
 
@@ -236,7 +242,8 @@ void align_PE( int rep, int nth_rep ) {
 			tmp_log := parse_flagstat( flagstat_nodup_qc_ )
 			deduped_reads = metric_prefix( parse_int( tmp_log{"total"} ) )			
 		}
-		// add to report
+
+                // add to report
 		filt_bam{rep} = filt_bam_
 		add_file_to_report( filt_bam_, "filt. bam" + (deduped_reads ? "\\n$deduped_reads" : ""), group, \
 			"Alignment/$long/Filtered & deduped bam" + (deduped_reads ? " ($deduped_reads)" : "") )
@@ -256,6 +263,7 @@ void align_PE( int rep, int nth_rep ) {
 		}
 	}
 
+        // bam to bedpe
 	string bedpe, subsampled_bedpe, tag
 
 	if ( is_input_fastq( rep ) || is_input_bam( rep ) || is_input_filt_bam( rep ) ) {
@@ -281,6 +289,7 @@ void align_PE( int rep, int nth_rep ) {
 		wait
 	}
 
+        // taglign and TN5 shift 
 	string final_tag_, final_tag_pr1_, final_tag_pr2_
 
 	if ( is_input_fastq( rep ) || is_input_bam( rep ) || is_input_filt_bam( rep ) || is_input_tag( rep ) ) {
@@ -290,48 +299,10 @@ void align_PE( int rep, int nth_rep ) {
 		string aln_pr1_o_dir, aln_pr2_o_dir
 		string tag_pr1, tag_pr2
 
-		if ( !true_rep ) {
-
-			aln_pr1_o_dir = mkdir( "$out_dir/align/pseudo_reps/$group/pr1" )
-			aln_pr2_o_dir = mkdir( "$out_dir/align/pseudo_reps/$group/pr2" )
-
-			if ( is_input_tag( rep ) ) {
-				( tag_pr1, tag_pr2 ) = spr_tag_PE( tag, aln_pr1_o_dir, aln_pr2_o_dir, group )
-			}
-			else {
-				( tag_pr1, tag_pr2 ) = spr_PE( subsampled_bedpe, aln_pr1_o_dir, aln_pr2_o_dir, group )
-			}
-			wait
-		}
-
-		if ( is_dnase_seq() ) {
-			final_tag_ = tag
-		}
-		else {
-			final_tag_ = tn5_shift_tag( tag, aln_o_dir, group )
-		}		
+                final_tag_ = tn5_shift_tag( tag, aln_o_dir, group )
 		final_tag{rep} = final_tag_
 
 		add_file_to_report( final_tag_, "tag-align", group, "Alignment/$long/Tag-align" )
-
-		if ( !true_rep ) {
-
-			if ( is_dnase_seq() ) {
-				final_tag_pr1_ = tag_pr1
-				final_tag_pr2_ = tag_pr2
-			}
-			else {
-				final_tag_pr1_ = tn5_shift_tag( tag_pr1, aln_pr1_o_dir, group )
-				final_tag_pr2_ = tn5_shift_tag( tag_pr2, aln_pr2_o_dir, group )
-			}
-			final_tag_pr1{rep} = final_tag_pr1_
-			final_tag_pr2{rep} = final_tag_pr2_
-
-			add_file_to_report( final_tag_pr1_, "tag-align", "$group-pr1", \
-				"Alignment/Pseudo-replicates/$long/Pseudo-replicate 1/Tag-align" )
-			add_file_to_report( final_tag_pr2_, "tag-align", "$group-pr2", \
-				"Alignment/Pseudo-replicates/$long/Pseudo-replicate 2/Tag-align" )			
-		}
 		wait
 
 		string subsampled_tag_xcor
@@ -370,9 +341,141 @@ void align_PE( int rep, int nth_rep ) {
 	}
 }
 
+/*************************************************************
+The Peak calling Part
+*************************************************************/
 
 void call_peaks() {
 
-	...
-	wait 			// `wait` is okay because no `par` functions before it.
+	if ( align ) return
+	if ( is_input_peak() ) return
+
+	// pool tag-aligns
+	string[] tags, tags_pr1, tags_pr2
+
+	for ( int rep=1; rep<=get_num_rep(); rep++ ) {
+		tags.add( final_tag{rep} )
+	 	if ( !true_rep ) {
+			tags_pr1.add( final_tag_pr1{rep} )
+			tags_pr2.add( final_tag_pr2{rep} )
+		}
+	}
+	
+	if ( get_num_rep() > 1 ) {
+	 	aln_pooled_o_dir := mkdir( "$out_dir/align/pooled_rep" )
+		final_tag_pooled = pool_tag( tags, aln_pooled_o_dir, "pooled_rep" )
+		add_file_to_report( final_tag_pooled, "tag-align", "pooled_rep", "Alignment/Pooled replicate/Tag-align" )
+
+		if ( !true_rep ) {
+			// Make shifted tags for pooled pseudo rep (ppr).
+		 	aln_ppr1_o_dir   := mkdir( "$out_dir/align/pooled_pseudo_reps/ppr1" )
+		 	aln_ppr2_o_dir   := mkdir( "$out_dir/align/pooled_pseudo_reps/ppr2" )
+
+			final_tag_ppr1 = pool_tag( tags_pr1, aln_ppr1_o_dir, "ppr1" )
+			final_tag_ppr2 = pool_tag( tags_pr2, aln_ppr2_o_dir, "ppr2" )
+
+			add_file_to_report( final_tag_ppr1, "tag-align", "ppr1", "Alignment/Pooled pseudo-replicates/Pooled pseudo-replicate 1/Tag-align" )
+			add_file_to_report( final_tag_ppr2, "tag-align", "ppr2", "Alignment/Pooled pseudo-replicates/Pooled pseudo-replicate 2/Tag-align" )			
+		}
+
+		wait
+	}
+
+	string tmp
+	// call peaks for each replicate
+	for ( int rep=1; rep<=get_num_rep(); rep++ ) {
+		group 	:= get_group_name( rep )
+		long 	:= get_long_group_name( rep )
+
+		// call peaks
+		peak_o_dir 	:= mkdir( "$out_dir/peak/macs2/$group")
+		sig_o_dir 	:= mkdir( "$out_dir/signal/macs2/$group" )
+
+		// signal track generation = true
+		string peak_001_, gpeak_001_
+		( peak_001_, fc_bigwig_001{rep}, pval_bigwig_001{rep} ) \
+				= macs2_atac_npeak_and_signal( final_tag{rep}, "$smooth_win", macs2_pval_thresh_bw, true, peak_o_dir, sig_o_dir, group )
+		peak_001{rep} = peak_001_
+		add_file_to_report( peak_001{rep}, "n. peak\\np-val<$macs2_pval_thresh_bw", group, \
+			"Peaks/MACS2/$long/Narrow peak (p-val thresh=$macs2_pval_thresh_bw)" )
+		add_file_to_report( fc_bigwig_001{rep}, "signal fc", group, "Signal tracks/MACS2/$long/Fold enrichment" )
+		add_file_to_report( pval_bigwig_001{rep}, "signal p-val", group, "Signal tracks/MACS2/$long/P-value" )
+
+		if ( !disable_gb_peak ) {
+			( gpeak_001_, tmp ) \
+					= macs2_atac_gpeak_and_bpeak( final_tag{rep}, "$smooth_win", macs2_pval_thresh_bw, peak_o_dir, group )
+			gpeak_001{rep} = gpeak_001_
+			add_file_to_report( gpeak_001{rep}, "g. peak\\np-val<$macs2_pval_thresh_bw", group, \
+				"Peaks/MACS2/$long/Gapped peak (p-val thresh=$macs2_pval_thresh_bw)" )
+		}
+		if ( macs2_pval_thresh_bw == macs2_pval_thresh ) { // if two p-val threshold are the same, skip one of them.			
+			peak{rep} = peak_001_
+			if ( !disable_gb_peak ) {
+				gpeak{rep} = gpeak_001_
+			}
+		}
+		else {
+			( peak{rep}, tmp )  \
+					= macs2_atac_npeak_and_signal( final_tag{rep}, "$smooth_win", macs2_pval_thresh, false, peak_o_dir, sig_o_dir, group )
+			add_file_to_report( peak{rep}, "n. peak", group, "Peaks/MACS2/$long/Narrow peak" )
+
+			if ( !disable_gb_peak ) {
+				( gpeak{rep}, tmp )  \
+						= macs2_atac_gpeak_and_bpeak( final_tag{rep}, "$smooth_win", macs2_pval_thresh, peak_o_dir, group )
+				add_file_to_report( gpeak{rep}, "g. peak", group, "Peaks/MACS2/$long/Gapped peak" )
+			}
+		}
+
+	}
+
+	// call peaks for pooled replicates
+	if ( get_num_rep() > 1 ) {
+
+		peak_o_dir 	:= mkdir( "$out_dir/peak/macs2")
+		sig_o_dir 	:= mkdir( "$out_dir/signal/macs2")
+
+		pooled_o_dir	:= mkdir( "$peak_o_dir/pooled_rep" )
+		pooled_sig_o_dir:= mkdir( "$sig_o_dir/pooled_rep" )
+
+		// macs2 on pooled reps, signal tracks are generated
+		( peak_pooled_001, fc_bigwig_001{"pooled"}, pval_bigwig_001{"pooled"} ) \
+			= macs2_atac_npeak_and_signal( final_tag_pooled, "$smooth_win", macs2_pval_thresh_bw, true, pooled_o_dir, pooled_sig_o_dir, "pooled_rep" )
+		add_file_to_report( peak_pooled_001, "n. peak\\np-val<$macs2_pval_thresh_bw", "pooled_rep", "Peaks/MACS2/Pooled replicate/Narrow peak (p-val thresh=.01)" )
+		add_file_to_report( fc_bigwig_001{"pooled"}, "signal fc", "pooled_rep", "Signal tracks/MACS2/Pooled replicate/Fold enrichment" )
+		add_file_to_report( pval_bigwig_001{"pooled"}, "signal p-val", "pooled_rep", "Signal tracks/MACS2/Pooled replicate/P-value" )
+
+		if ( !disable_gb_peak ) {
+			( gpeak_pooled_001, tmp ) \
+				= macs2_atac_gpeak_and_bpeak( final_tag_pooled, "$smooth_win", macs2_pval_thresh_bw, pooled_o_dir, "pooled_rep" )
+			add_file_to_report( gpeak_pooled_001, "g. peak\\np-val<$macs2_pval_thresh_bw", "pooled_rep", "Peaks/MACS2/Pooled replicate/Gapped peak (p-val thresh=.01)" )
+		}
+
+		// macs2 on pooled reps
+		if ( macs2_pval_thresh_bw == macs2_pval_thresh ) { // if two p-val threshold are the same, skip one of them.
+			peak_pooled = peak_pooled_001
+			if ( !disable_gb_peak ) {
+				gpeak_pooled = gpeak_pooled_001
+			}
+		}
+		else {
+			( peak_pooled, tmp ) \
+				= macs2_atac_npeak_and_signal( final_tag_pooled, "$smooth_win", macs2_pval_thresh, false, pooled_o_dir, pooled_sig_o_dir, "pooled_rep" )
+			add_file_to_report( peak_pooled, "n. peak", "pooled_rep", "Peaks/MACS2/Pooled replicate/Narrow peak" )
+
+			if ( !disable_gb_peak ) {
+				( gpeak_pooled, tmp ) \
+					= macs2_atac_gpeak_and_bpeak( final_tag_pooled, "$smooth_win", macs2_pval_thresh, pooled_o_dir, "pooled_rep" )
+				add_file_to_report( gpeak_pooled, "g. peak", "pooled_rep", "Peaks/MACS2/Pooled replicate/Gapped peak" )
+			}
+		}
+
+	}
+
+	wait
+
+	print( "\n== Done call_peaks()\n" )
+
 }
+
+
+
