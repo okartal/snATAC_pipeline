@@ -23,6 +23,8 @@ $ scATAC -t 2 \
 ## conda install 
 
 
+Run `bash ./install_dependencies.sh` to generate `bds_scATAC` environment to encapsulate dependent softwares. 
+
 
 ## Requirements
 
