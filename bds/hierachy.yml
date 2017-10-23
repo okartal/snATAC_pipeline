@@ -15,7 +15,7 @@ conf.bds
 [env.bds output.bds]
 |-- graphviz.bds 		# Graphviz diagram (SVG)
 
-[git.bds, parallel.bds, report.bds]
+[git.bds, parallel.bds, report.bds] # for pipeline
 |-- pipeline_template.bds 	# general pipeline template (all pipelines should start from including this)
 
 
@@ -28,3 +28,5 @@ conf.bds
 |-- callpeak_filter.bds  	# filter top peaks from peak files
 |-- callpeak_idr.bds  		# IDR and QC functions
 |-- signal.bds  		# signal track generation using deepTools (bamCoverage) and Anshul's align2rawsignal.
+
+

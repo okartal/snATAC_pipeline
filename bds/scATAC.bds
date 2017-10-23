@@ -1,0 +1,378 @@
+include "modules/pipeline.bds"
+include "modules/any_module_you_want_to_include.bds"
+
+//------------------------------------------------------------
+// Important output file names are stored in global variables (usually a string map string{} with a key with replicate id, pair id)
+// e.g. filt_bam{"1"} = filtered bam for replicate 1, peak_pr1{"2"} = peak file for pseudo replicate 1 of replicate 2
+
+
+    
+main()
+
+// global scope
+
+void main() { 
+
+	// global function scope
+	init()
+	chk_input()
+	chk_adapters()            
+	align()
+	call_peaks()
+        split_cells()
+	report()	
+}
+
+// sub-steps 
+void init() {...}
+
+void chk_input() {...}
+
+void align() {
+
+	if ( is_input_peak() ) return
+
+	// filesize of input ( map with key $rep )
+	int{} filesize
+	for ( int rep=1; rep <= get_num_rep(); rep++) {
+
+		// check file size to distribute nth to each nth_app
+		// determine # threads for each app related to alignment
+
+		// get file size in bytes
+		if ( is_input_fastq( rep ) ) {
+			fastqs := get_fastqs( rep )
+			filesize{rep} = (fastqs[0]).size()
+			if ( fastqs.size() > 1) filesize{rep} += (fastqs[1]).size()*3 // multiply 3 to allocate more cpus for align
+		}
+
+	}
+
+	//// distribute # threads for each replicate
+	nth_rep := distribute_nonzero( nth, filesize ) // distribute # threads according to input filesize
+
+	for (int rep=1; rep<=get_num_rep(); rep++) {
+
+		if ( no_par ) align( rep, nth_rep{rep} )
+		else 	  par align( rep, nth_rep{rep} )
+	}
+
+	wait
+
+	print( "\n== Done do_align()\n" )
+}
+
+void align( int rep, int nth_rep ) {
+    align_PE(rep, nth_rep)
+}
+
+void align_PE( int rep, int nth_rep ) {
+
+	group 	:= get_group_name( rep )
+	long 	:= get_long_group_name( rep )
+
+	aln_o_dir := mkdir( "$out_dir/align/$group" ) // create align output directory
+	qc_o_dir  := mkdir( "$out_dir/qc/$group" ) // create qc output dir.
+
+	string bam_, align_log_, read_length_log, flagstat_qc_
+	string[] fastqs_pair1, fastqs_pair2
+
+	if ( is_input_fastq( rep ) ) {
+
+		fastqs_pair1 = get_fastq( 0, rep, 1 )
+		fastqs_pair2 = get_fastq( 0, rep, 2 )
+
+		string[] trimmed_fastqs_pair1, trimmed_fastqs_pair2
+
+		if ( fastqs_pair1.size() != fastqs_pair2.size() ) {
+			error("Number of fastqs to be pooled for pair 1 and pair 2 do not match!\n")
+		}
+		for ( int i=0; i<fastqs_pair1.size(); i++) {
+			id := i+1
+			suffix := fastqs_pair1.size()==1 ? "" : ":$id"
+
+
+			if ( trimmed_fastq ) {
+				trimmed_fastqs_pair1.add( fastqs_pair1[i] )
+				trimmed_fastqs_pair2.add( fastqs_pair2[i] )
+			}
+			else {
+				string p1, p2
+
+                                adapters := get_adapters( rep )
+
+                                if ( adapters.size()==0 ) {
+                                    string adapter_log1, adapter_log2, tid1, tid2						
+                                    (adapter_log1, tid1) = detect_adapter( fastqs_pair1[i], qc_o_dir, group )
+                                    (adapter_log2, tid2) = detect_adapter( fastqs_pair2[i], qc_o_dir, group )
+                                    wait [tid1, tid2]
+                                    
+                                    adapter1 := parse_adapter_log( adapter_log1 )
+                                    adapter2 := parse_adapter_log( adapter_log2 )
+                                    
+                                    if ( adapter1 && adapter2 )         \
+                                        print("\nDetected adapter for $group (PE) : $adapter1, $adapter2\n")
+                                        else                            \
+                                            print("\nDetected adapter for $group (SE) : No adapter detected.\n")
+						adapters.add( adapter1 )
+						adapters.add( adapter2 )
+                                                }
+
+                                ( p1, p2 ) = trim_adapters_PE( fastqs_pair1[i], fastqs_pair2[i], \
+									adapters[0], adapters[1], aln_o_dir, group, suffix )
+
+
+				trimmed_fastqs_pair1.add( p1 )
+				trimmed_fastqs_pair2.add( p2 )
+
+			}
+		}
+		wait
+
+		string p1, p2
+		if ( trimmed_fastqs_pair1.size() > 1 ) { // if multiple fastqs are given, pool trimmed fastqs
+			p1 = pool_fastq( trimmed_fastqs_pair1, aln_o_dir, group )
+			p2 = pool_fastq( trimmed_fastqs_pair2, aln_o_dir, group )
+
+			wait
+		}
+		else {
+			p1 = trimmed_fastqs_pair1[0]
+			p2 = trimmed_fastqs_pair2[0]
+		}
+
+		fastq{rep+",1"} = p1
+		fastq{rep+",2"} = p2
+
+		read_length_log = get_read_length_log( p1, qc_o_dir, group )
+		( bam_, align_log_ ) = bowtie2_PE( p1, p2, aln_o_dir, qc_o_dir, group, nth_rep )
+		wait
+                
+		align_log{rep} = align_log_
+		add_file_to_table( align_log_, "QC and logs/$long/Bowtie2 map. log")
+
+		flagstat_qc_ = samtools_flagstat_bam( bam_, qc_o_dir, group )
+		wait
+		flagstat_qc{rep} = flagstat_qc_
+		add_file_to_table( flagstat_qc_, "QC and logs/$long/Bowtie2 map. flagstat log")
+
+		// add to report
+		tmp_log := parse_flagstat( flagstat_qc_ )
+		raw_reads := metric_prefix( parse_int( tmp_log{"total"} ) )
+		half_raw_reads := metric_prefix( parse_int( tmp_log{"total"} )/2 )
+		if ( trimmed_fastqs_pair1.size() > 1 ) { // if multiple fastqs are given, pool trimmed fastqs
+			for ( int i=0; i<fastqs_pair1.size(); i++) {
+				id := i+1
+				suffix := fastqs_pair1.size()==1 ? "" : ":$id"
+				add_file_to_report( fastqs_pair1[i], "fastq 1$suffix", group, \
+					"Raw reads/$long/Fastq 1$suffix" )
+				add_file_to_report( fastqs_pair2[i], "fastq 2$suffix", group, \
+					"Raw reads/$long/Fastq 2$suffix" )
+				if ( !trimmed_fastq ) {
+					add_file_to_report( trimmed_fastqs_pair1[i], "trimmed\\nfastq 1$suffix", group, \
+						"Raw reads/$long/Trimmed fastq 1$suffix" )
+					add_file_to_report( trimmed_fastqs_pair2[i], "trimmed\\nfastq 2$suffix", group, \
+						"Raw reads/$long/Trimmed fastq 2$suffix" )
+				}
+			}
+			add_file_to_report( p1, "pooled\\nfastq 1" + (half_raw_reads ? "\\n$half_raw_reads" : ""), group, \
+				"Raw reads/$long/Pooled fastq 1"+ (half_raw_reads ? " ($half_raw_reads)" : "") )
+			add_file_to_report( p2, "pooled\\nfastq 2" + (half_raw_reads ? "\\n$half_raw_reads" : ""), group, \
+				"Raw reads/$long/Pooled fastq 2"+ (half_raw_reads ? " ($half_raw_reads)" : "") )
+		}
+		else {
+			for ( int i=0; i<fastqs_pair1.size(); i++) {
+				if ( trimmed_fastq ) {
+					add_file_to_report( fastqs_pair1[i], "fastq 1" + (half_raw_reads ? "\\n$half_raw_reads" : ""), group, \
+						"Raw reads/$long/Fastq 1"+ (half_raw_reads ? " ($half_raw_reads)" : "") )
+					add_file_to_report( fastqs_pair2[i], "fastq 2" + (half_raw_reads ? "\\n$half_raw_reads" : ""), group, \
+						"Raw reads/$long/Fastq 2"+ (half_raw_reads ? " ($half_raw_reads)" : "") )
+				}
+				else {
+					add_file_to_report( fastqs_pair1[i], "fastq 1", group, \
+						"Raw reads/$long/Fastq 1" )
+					add_file_to_report( fastqs_pair2[i], "fastq 2", group, \
+						"Raw reads/$long/Fastq 2" )
+					add_file_to_report( trimmed_fastqs_pair1[i], "trimmed\\nfastq 1" + (half_raw_reads ? "\\n$half_raw_reads" : ""), group, \
+						"Raw reads/$long/Trimmed fastq 1"+ (half_raw_reads ? " ($half_raw_reads)" : "") )
+					add_file_to_report( trimmed_fastqs_pair2[i], "trimmed\\nfastq 2" + (half_raw_reads ? "\\n$half_raw_reads" : ""), group, \
+						"Raw reads/$long/Trimmed fastq 2"+ (half_raw_reads ? " ($half_raw_reads)" : "") )
+				}
+			}
+		}
+
+		mapped_reads := metric_prefix( parse_int( tmp_log{"mapped"} ) )
+		bam{rep} = bam_
+		add_file_to_report( bam_, "bam" + (mapped_reads ? "\\n$mapped_reads" : ""), group, \
+			"Alignment/$long/Bam" + (mapped_reads ? " ($mapped_reads)" : "") )
+	}
+
+	string filt_bam_, dup_qc_, pbc_qc_, flagstat_nodup_qc_
+
+	if ( is_input_fastq( rep ) || is_input_bam( rep ) ) {
+
+		if ( is_input_bam( rep ) ) {
+			bam_ = get_bam( 0, rep )
+			bam{rep} = bam_
+		}
+
+		string deduped_reads
+		if ( no_dup_removal ) {
+			string tmp
+			(filt_bam_, tmp ) \
+				= dedup_bam_PE( bam_, aln_o_dir, qc_o_dir, group, nth_rep )
+			wait
+		}
+		else {
+			(filt_bam_, dup_qc_, flagstat_nodup_qc_, pbc_qc_ ) \
+				= dedup_bam_PE( bam_, aln_o_dir, qc_o_dir, group, nth_rep )
+			dup_qc{rep} = dup_qc_
+			pbc_qc{rep} = pbc_qc_
+			flagstat_nodup_qc{rep} = flagstat_nodup_qc_
+			add_file_to_table( dup_qc_, "QC and logs/$long/Dedup. log")
+			add_file_to_table( pbc_qc_, "QC and logs/$long/PBC log")
+			add_file_to_table( flagstat_nodup_qc_, "QC and logs/$long/Filtered flagstat log")
+			wait
+			tmp_log := parse_flagstat( flagstat_nodup_qc_ )
+			deduped_reads = metric_prefix( parse_int( tmp_log{"total"} ) )			
+		}
+		// add to report
+		filt_bam{rep} = filt_bam_
+		add_file_to_report( filt_bam_, "filt. bam" + (deduped_reads ? "\\n$deduped_reads" : ""), group, \
+			"Alignment/$long/Filtered & deduped bam" + (deduped_reads ? " ($deduped_reads)" : "") )
+
+		if ( is_input_fastq( rep ) ) {
+			string ENCODE_step_name
+			if ( get_num_rep()==1 ) ENCODE_step_name = "anshul-kundaje:atac-seq-trim-align-filter-step-run-single-rep-v1"
+			else 			ENCODE_step_name = "anshul-kundaje:atac-seq-trim-align-filter-step-run-v1"
+			if ( fastqs_pair1.size() > 0 || fastqs_pair2.size() > 0 ) {
+				add_ENCODE_metadata_to_summary_json( "bam", "", "alignments", \
+					ENCODE_step_name, filt_bam_, fastqs_pair1+fastqs_pair2 )
+			}
+			if ( flagstat_qc_) { 
+				add_ENCODE_quality_metrics_to_summary_json( "samtools_flagstats_quality_metric", \
+					ENCODE_step_name, [filt_bam_], [flagstat_qc_] )
+			}
+		}
+	}
+
+	string bedpe, subsampled_bedpe, tag
+
+	if ( is_input_fastq( rep ) || is_input_bam( rep ) || is_input_filt_bam( rep ) ) {
+
+		if ( is_input_filt_bam( rep ) ) {
+			filt_bam_ = get_filt_bam( 0, rep )
+			filt_bam{rep} = filt_bam_
+		}
+
+		bedpe = bam_to_bedpe( filt_bam_, aln_o_dir, group )
+		wait
+
+		if ( parse_number( subsample )!=0 ) {
+
+			subsampled_bedpe = subsample_bedpe( bedpe, parse_number( subsample ), aln_o_dir, group )
+		}
+		else {
+			subsampled_bedpe = bedpe
+		}
+		wait
+
+		tag = bedpe_to_tag( subsampled_bedpe, aln_o_dir, group )
+		wait
+	}
+
+	string final_tag_, final_tag_pr1_, final_tag_pr2_
+
+	if ( is_input_fastq( rep ) || is_input_bam( rep ) || is_input_filt_bam( rep ) || is_input_tag( rep ) ) {
+
+		if ( is_input_tag( rep ) ) tag = get_tag( 0, rep )
+
+		string aln_pr1_o_dir, aln_pr2_o_dir
+		string tag_pr1, tag_pr2
+
+		if ( !true_rep ) {
+
+			aln_pr1_o_dir = mkdir( "$out_dir/align/pseudo_reps/$group/pr1" )
+			aln_pr2_o_dir = mkdir( "$out_dir/align/pseudo_reps/$group/pr2" )
+
+			if ( is_input_tag( rep ) ) {
+				( tag_pr1, tag_pr2 ) = spr_tag_PE( tag, aln_pr1_o_dir, aln_pr2_o_dir, group )
+			}
+			else {
+				( tag_pr1, tag_pr2 ) = spr_PE( subsampled_bedpe, aln_pr1_o_dir, aln_pr2_o_dir, group )
+			}
+			wait
+		}
+
+		if ( is_dnase_seq() ) {
+			final_tag_ = tag
+		}
+		else {
+			final_tag_ = tn5_shift_tag( tag, aln_o_dir, group )
+		}		
+		final_tag{rep} = final_tag_
+
+		add_file_to_report( final_tag_, "tag-align", group, "Alignment/$long/Tag-align" )
+
+		if ( !true_rep ) {
+
+			if ( is_dnase_seq() ) {
+				final_tag_pr1_ = tag_pr1
+				final_tag_pr2_ = tag_pr2
+			}
+			else {
+				final_tag_pr1_ = tn5_shift_tag( tag_pr1, aln_pr1_o_dir, group )
+				final_tag_pr2_ = tn5_shift_tag( tag_pr2, aln_pr2_o_dir, group )
+			}
+			final_tag_pr1{rep} = final_tag_pr1_
+			final_tag_pr2{rep} = final_tag_pr2_
+
+			add_file_to_report( final_tag_pr1_, "tag-align", "$group-pr1", \
+				"Alignment/Pseudo-replicates/$long/Pseudo-replicate 1/Tag-align" )
+			add_file_to_report( final_tag_pr2_, "tag-align", "$group-pr2", \
+				"Alignment/Pseudo-replicates/$long/Pseudo-replicate 2/Tag-align" )			
+		}
+		wait
+
+		string subsampled_tag_xcor
+
+		if ( bedpe == "" ) {
+			subsampled_tag_xcor = subsample_tag_PE_xcor( tag, parse_number( subsample_xcor ), aln_o_dir, group )
+		}
+		else {
+			subsampled_tag_xcor = subsample_bedpe_to_tag_xcor( bedpe, parse_number( subsample_xcor ), aln_o_dir, group )
+		}
+		wait
+
+		if ( !no_xcor ) {
+			// cross-corr. analysis
+			string xcor_qc_, xcor_plot_
+			( xcor_qc_, xcor_plot_ ) = xcor( subsampled_tag_xcor, qc_o_dir, group, nth_rep ) 
+
+			xcor_qc{rep} = xcor_qc_
+			xcor_plot{rep} = xcor_plot_
+
+			add_file_to_report( final_tag_, "tag-align", group, "Alignment/$long/Tag-align" )
+			add_file_to_table( xcor_plot_, "QC and logs/$long/Cross-corr. plot" )
+
+			wait
+			string ENCODE_step_name
+			if ( pbc_qc_ && read_length_log ) {
+				if ( get_num_rep() == 1 ) \
+					ENCODE_step_name = "anshul-kundaje:atac-seq-trim-align-filter-step-run-single-rep-v1"
+				else 			  \
+					ENCODE_step_name = "anshul-kundaje:atac-seq-trim-align-filter-step-run-v1"			
+				add_ENCODE_quality_metrics_to_summary_json( "complexity_xcorr_quality_metric", \
+					ENCODE_step_name, \
+					[filt_bam_], [pbc_qc_, xcor_qc_, read_length_log], [ "true", xcor_plot_] )
+			}
+		}
+	}
+}
+
+
+void call_peaks() {
+
+	...
+	wait 			// `wait` is okay because no `par` functions before it.
+}
