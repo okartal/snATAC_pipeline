@@ -159,17 +159,19 @@ if [ -d $PREFIX\_tmp ]; then
 fi
 mkdir $PREFIX\_tmp
 
-echo "Step 1. map using bowtie2 followed by filtering reads with MAPQ < 30 and inproperly mapped pairs;" 2>&1 | tee -a $PREFIX.log
+echo " (`date`) Step 1. map using bowtie2 followed by filtering reads with MAPQ < 30 and inproperly mapped pairs;" 2>&1 | tee -a $PREFIX.log
 if [ ! -f $PREFIX\_tmp/$PREFIX.umap.bam ]; then
-	bowtie2 -p $THREADS -t -X2000 --no-mixed --no-discordant --mm -x $GENOME -1 $R1 -2 $R2 | samtools view -F 1804 -q 30 -bS - > $PREFIX\_tmp/$PREFIX.umap.bam
+    bowtie2 -p $THREADS -t -X2000 --no-mixed --no-discordant --mm -x $GENOME -1 $R1 -2 $R2 | samtools view -F 1804 -q 30 -bS - > $PREFIX\_tmp/$PREFIX.umap.bam
+else
+    echo "`(date): pre-existed bam file; alignment skipped`" | tee -a $PREFIX.log
 fi
 
-echo "Step 2. correct barcode error by allowing $MAX_BARCODE_MISMATCH mismatches;" 2>&1 | tee -a $PREFIX.log
+echo " (`date`) Step 2. correct barcode error by allowing $MAX_BARCODE_MISMATCH mismatches;" 2>&1 | tee -a $PREFIX.log
 samtools view -h $PREFIX\_tmp/$PREFIX.umap.bam \
 | scATAC_barcode_err_correct $MAX_BARCODE_MISMATCH $BARCODE_DIR \
 | samtools view -bS - > $PREFIX\_tmp/$PREFIX.umap.corrected.bam
 
-echo "Step 3. split reads to individual cells based on the barcode combination;" 2>&1 | tee -a $PREFIX.log
+echo " (`date`) Step 3. split reads to individual cells based on the barcode combination;" 2>&1 | tee -a $PREFIX.log
 samtools sort -n -@ $THREADS -m 1G $PREFIX\_tmp/$PREFIX.umap.corrected.bam -o $PREFIX\_tmp/$PREFIX.umap.corrected.nsorted.bam
 if [ -d $PREFIX\_tmp/cells ]; then
 	rm -r $PREFIX\_tmp/cells
@@ -178,7 +180,7 @@ mkdir $PREFIX\_tmp/cells # create a tmp folder
 samtools view -h $PREFIX\_tmp/$PREFIX.umap.corrected.nsorted.bam \
 | scATAC_decell $MIN_READ $PREFIX\_tmp/cells -
 
-echo 'Step 4. remove PCR duplication for each cell;' 2>&1 | tee -a $PREFIX.log
+echo ' (`date`) Step 4. remove PCR duplication for each cell;' 2>&1 | tee -a $PREFIX.log
 iterator=0
 for line in `ls $PREFIX\_tmp/cells | grep .sam`
 do
@@ -198,25 +200,25 @@ done
 rm -r $PREFIX\_tmp/cells/*_tmp
 rm $PREFIX\_tmp/cells/*.sam
 
-echo 'Step 5. merge reads from different cells to a single file;' 2>&1 | tee -a $PREFIX.log
+echo ' (`date`) Step 5. merge reads from different cells to a single file;' 2>&1 | tee -a $PREFIX.log
 samtools cat -o $PREFIX\_tmp/$PREFIX.umap.corrected.nsorted.bam $PREFIX\_tmp/cells/*.sorted.bam
 samtools cat -o $PREFIX\_tmp/$PREFIX.umap.corrected.nsorted.nodup.bam $PREFIX\_tmp/cells/*.sorted.filtered.bam
 #rm -r $PREFIX\_tmp/cells/
 
-echo 'Step 6. generate barcode frequency;' 2>&1 | tee -a $PREFIX.log
+echo ' (`date`) Step 6. generate barcode frequency;' 2>&1 | tee -a $PREFIX.log
 samtools view $PREFIX\_tmp/$PREFIX.umap.corrected.nsorted.nodup.bam \
 | awk '{split($1,a,":"); print a[1]}' | sort | uniq -c | awk '{print $2, $1}' \
 | sort -k2rn - > $PREFIX\_tmp/$PREFIX.umap.corrected.nsorted.nodup.stat 
 
-echo "Step 7. filter cells with low reads less than $MIN_READ reads;" 2>&1 | tee -a $PREFIX.log
+echo " (`date`) Step 7. filter cells with low reads less than $MIN_READ reads;" 2>&1 | tee -a $PREFIX.log
 samtools view -h $PREFIX\_tmp/$PREFIX.umap.corrected.nsorted.nodup.bam \
 | scATAC_rm_cell_with_low_cov $MIN_READ $PREFIX\_tmp/$PREFIX.umap.corrected.nsorted.nodup.stat - \
 | samtools view -bS - > $PREFIX\_tmp/$PREFIX.umap.corrected.nsorted.nodup.filtered.bam
 
-echo 'Step 8. sort by genomic coordinates;' 2>&1 | tee -a $PREFIX.log
+echo ' (`date`) Step 8. sort by genomic coordinates;' 2>&1 | tee -a $PREFIX.log
 samtools sort -@ $THREADS -m 1G $PREFIX\_tmp/$PREFIX.umap.corrected.nsorted.nodup.filtered.bam -o $PREFIX\_tmp/$PREFIX.umap.corrected.nsorted.nodup.filtered.gsorted
 
-echo 'Step 9. summerize;' 2>&1 | tee -a $PREFIX.log
+echo ' (`date`) Step 9. summerize;' 2>&1 | tee -a $PREFIX.log
 TOTAL_READS=$(zcat $R1 | wc -l | awk '{print $1}')
 UNIQ_READS=$(samtools view $PREFIX\_tmp/$PREFIX.umap.bam | wc -l | awk '{print $1}')
 BARCODE_CORRECTED_READS=$(samtools view $PREFIX\_tmp/$PREFIX.umap.corrected.bam | wc -l | awk '{print $1}')
@@ -226,7 +228,7 @@ TOTAL_CELLS=$(awk -v cutoff="$MIN_READ" '{if ($2 > cutoff) print }' $PREFIX\_tmp
 FINAL_READS=$(samtools view $PREFIX\_tmp/$PREFIX.umap.corrected.nsorted.nodup.filtered.gsorted.bam | wc -l | awk '{print $1}')
 TOTAL_BARCODE=$(samtools view $PREFIX\_tmp/$PREFIX.umap.corrected.bam | awk '{split($1,a,":"); print a[1]}' | sort | uniq -c | wc -l | awk '{print $1}')
 
-echo 'Step 10. clean up;' 2>&1 | tee -a $PREFIX.log
+echo ' (`date`) Step 10. clean up;' 2>&1 | tee -a $PREFIX.log
 echo "================================ Summary ==================================" 2>&1 | tee -a $PREFIX.log
 echo "Total number of raw reads: $((TOTAL_READS/4))" 2>&1 | tee -a $PREFIX.log
 echo "Uniquely mapped reads (MAPQ>=30): $UNIQ_READS" 2>&1 | tee -a $PREFIX.log
