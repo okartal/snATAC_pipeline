@@ -39,4 +39,9 @@ cp --remove-destination -rf ./utils/clusterGeneric/ $HOME/.bds/
 
 ## install additional packages
 
+source activate $ENV_NAME
+conda install -c conda-forge -c bioconda samtools bzip2 #samtools 1.6 to avoid lib error
+source deactivate
+
+
 echo == Installing dependencies has been successfully done. ==

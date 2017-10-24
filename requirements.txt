@@ -1,5 +1,5 @@
 # channels : defaults, r, bioconda
-# Time-stamp: "2017-10-23 14:21:13"
+# Time-stamp: "2017-10-24 10:47:24"
 
 bwa == 0.7.16
 bowtie2 ==2.3.3.1
@@ -8,3 +8,4 @@ macs2 ==2.1.1
 multiqc ==1.2
 numpy ==1.13.3 #
 picard ==2.13
+samtools==1.6
