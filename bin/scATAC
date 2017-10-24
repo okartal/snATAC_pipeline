@@ -161,7 +161,7 @@ mkdir $PREFIX\_tmp
 
 echo "Step 1. map using bowtie2 followed by filtering reads with MAPQ < 30 and inproperly mapped pairs;" 2>&1 | tee -a $PREFIX.log
 if [ ! -f $PREFIX\_tmp/$PREFIX.umap.bam ]; then
-	bowtie2 -p $THREADS -t -X2000 --no-mixed --no-discordant -x $GENOME -1 $R1 -2 $R2 | samtools view -F 1804 -q 30 -bS - > $PREFIX\_tmp/$PREFIX.umap.bam
+	bowtie2 -p $THREADS -t -X2000 --no-mixed --no-discordant --mm -x $GENOME -1 $R1 -2 $R2 | samtools view -F 1804 -q 30 -bS - > $PREFIX\_tmp/$PREFIX.umap.bam
 fi
 
 echo "Step 2. correct barcode error by allowing $MAX_BARCODE_MISMATCH mismatches;" 2>&1 | tee -a $PREFIX.log
