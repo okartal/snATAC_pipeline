@@ -1,21 +1,56 @@
 sinclude "modules/pipeline.bds"
 include "modules/any_module_you_want_to_include.bds"
 
-//------------------------------------------------------------
-// Important output file names are stored in global variables (usually a string map string{} with a key with replicate id, pair id)
-// e.g. filt_bam{"1"} = filtered bam for replicate 1, peak_pr1{"2"} = peak file for pseudo replicate 1 of replicate 2
+/*************************************************************
+help 
+*************************************************************/
+help == scATAC pipeline settings
 
+type 		:= "scATAC-seq" help Type of the pipeline. 
+trimmed_fastq 	:= false	help Skip fastq-trimming stage.
+align	 	:= false	help Align only (no MACS2 peak calling or IDR or ataqc analysis).
+subsample_xcor	:= "25M"	help # reads to subsample for cross corr. analysis (default: 25M).
+subsample 	:= "0" 		help # reads to subsample exp. replicates. Subsampled tagalign will be used for steps downstream (default: 0; no subsampling).
+no_xcor 	:= false 	help No Cross-correlation analysis.
+bwa	 	:= false	help Use BWA for alignment.
+smooth_win 	:= "150" 	help Smoothing window size for MACS2 peak calling (default: 150).
+no_browser_tracks := false 	help Disable generation of genome browser tracks (workaround for bzip2 shared library issue).
+overlap_pval_thresh := 0.01	help p-val threshold for overlapped peaks (default: 0.01).
+macs2_pval_thresh := 0.01	help MACS2 p-val threshold for calling peaks (default: 0.1).
+macs2_pval_thresh_bw := 0.01	help MACS2 p-val threshold for generating BIGWIG signal tracks (default: 0.1).
+enable_idr 	:= false 	help Enable IDR on called peaks.
+
+exclude_ppr_in_naive_overlap := false //help Exclude peaks from pooled pseudo replicates in naive overlap. This flag works for multiple replicate case only.
+disable_gb_peak := true // disable gapped/broad peak generation
+
+help() // show help contexts
+
+/*************************************************************
+load modules 
+*************************************************************/
+include "modules/pipeline_template.bds"
+include "modules/input.bds"
+include "modules/input_adapter.bds"
+
+include "modules/align_bowtie2.bds"
+include "modules/align_trim_adapter.bds"
+
+include "modules/postalign_bam.bds"
+include "modules/postalign_bed.bds"
+include "modules/postalign_xcor.bds"
+
+    
+/*************************************************************
+global varialbes
+*************************************************************/
 
     
 main()
 
-// global scope
-
 void main() { 
-
-	// global function scope
 	init()
 	chk_input()
+	chk_param(true_rep,false) // check if parameters are valid        
 	chk_adapters()            
 	align()
         split_reads()
@@ -24,10 +59,158 @@ void main() {
 	report()	
 }
 
-// sub-steps 
-void init() {...}
+/*************************************************************
+1. Init the pipeline
+*************************************************************/
+void init() {
 
-void chk_input() {...}
+	read_conf_atac()
+	init_etc_atac()
+	print_atac()
+	init_filetable()
+}
+
+void read_conf_atac() {
+
+	type		= get_conf_val( type,			["type"] )
+	trimmed_fastq 	= get_conf_val_bool( trimmed_fastq,	["trimmed_fastq"] )
+	align		= get_conf_val_bool( align,		["align"] )
+	true_rep	= get_conf_val_bool( true_rep, 		["true_rep"] )
+	no_xcor 	= get_conf_val_bool( no_xcor, 		["no_xcor"] )
+	smooth_win	= get_conf_val( smooth_win,		["smooth_win"] )
+	subsample_xcor 	= get_conf_val( subsample_xcor,		["subsample_xcor"] )
+	subsample	= get_conf_val( subsample, 		["subsample"] )
+	no_browser_tracks = get_conf_val_bool( no_browser_tracks,	["no_browser_tracks"] )
+	overlap_pval_thresh = get_conf_val_real( overlap_pval_thresh, 	["overlap_pval_thresh"] )
+	macs2_pval_thresh = get_conf_val_real( macs2_pval_thresh, ["macs2_pval_thresh"] )
+	macs2_pval_thresh_bw = get_conf_val_real( macs2_pval_thresh_bw, ["macs2_pval_thresh_bw"] )
+}
+void init_etc_atac() {
+
+	default_is_pe 	= true
+	speak_xcor 	= 0 // set fragment length explicitly as zero for cross corr. analysis
+	if ( rm_chr_from_tag == "" ) rm_chr_from_tag = "chrM"; // remove lines with chrM in _bam_to_tag
+}
+
+void print_atac() {
+
+	print( "\n\n== atac pipeline settings\n")
+	print( "Type of pipeline\t\t\t: $type\n")
+	print( "Fastqs are trimmed?\t\t\t: $trimmed_fastq\n")
+	print( "Align only\t\t\t\t: " + align + "\n")
+	print( "# reads to subsample replicates (0 if no subsampling)\t: "+parse_number( subsample )+"\n")
+	print( "# reads to subsample for cross-corr. analysis \t: " +parse_number( subsample_xcor)+"\n")
+	print( "No pseudo replicates\t\t\t: $true_rep\n")
+	print( "No Cross-corr. analysis\t\t\t: $no_xcor\n")
+	print( "Smoothing window for MACS2\t\t: $smooth_win\n")
+	print( "Disable genome browser tracks\t: $no_browser_tracks\n" )
+	print( "p-val thresh. for overlapped peaks\t: $overlap_pval_thresh\n")
+	print( "MACS2 p-val thresh. for peaks\t: $macs2_pval_thresh\n")
+	print( "MACS2 p-val thresh. for BIGWIGs\t\t: $macs2_pval_thresh_bw\n")
+}
+
+
+void init_filetable() { // init file table labels in HTML report
+
+	// add label to graphviz
+	// : Items in filetable will be sorted in the ascending order of rank
+ 	// : Items added later will have higher rank
+
+	// Level 1
+	add_label_to_table("Raw reads")
+	add_label_to_table("Alignment")
+	add_label_to_table("Signal tracks")
+	add_label_to_table("Peaks")
+	add_label_to_table("QC and logs")
+
+	// Level 2
+	for (int i=1; i<=100; i++) \
+		add_label_to_table("Replicate $i")
+	
+	add_label_to_table("True replicates")
+	add_label_to_table("Pooled replicate")
+	add_label_to_table("Pseudo-replicates")
+	add_label_to_table("Pooled pseudo-replicate")
+	add_label_to_table("Pooled pseudo-replicates")
+	add_label_to_table("Optimal set")
+	add_label_to_table("Conservative set")
+	add_label_to_table("Naive overlap")
+	add_label_to_table("MACS2")
+
+	// Level 2 or 3
+	add_label_to_table("Pooled pseudo-replicate 1")
+	add_label_to_table("Pooled pseudo-replicate 2")
+	for (int i=1; i<=20; i++) \
+	    for (int j=i+1; j<=20; j++) \
+	        add_label_to_table("Rep. $i vs Rep. $j")
+
+	// Higher levels
+	add_label_to_table("IDR QC")
+	add_label_to_table("Fastq")
+	add_label_to_table("Fastq 1")
+	add_label_to_table("Fastq 2")
+	add_label_to_table("Trimmed fastq")
+	add_label_to_table("Trimmed fastq 1")
+	add_label_to_table("Trimmed fastq 2")
+	add_label_to_table("Bowtie2 map. log")
+	add_label_to_table("Bam")
+	add_label_to_table("Filtered bam")
+	add_label_to_table("Sorted bam")
+	add_label_to_table("Dedup. log")
+	add_label_to_table("Bowtie2 map. flagstat log")
+	add_label_to_table("PBC log")
+	add_label_to_table("Bedpe")
+	add_label_to_table("Subsampled bedpe")
+	add_label_to_table("Tag-align")
+	add_label_to_table("Subsampled tag-align")
+	add_label_to_table("Cross-corr. log")
+	add_label_to_table("Cross-corr. plot")
+	add_label_to_table("P-value")
+	add_label_to_table("Fold enrichment")
+	add_label_to_table("Narrow peak")
+	add_label_to_table("Gapped peak")
+	add_label_to_table("Filtered narrow peak")
+	add_label_to_table("Filtered gapped peak")
+	add_label_to_table("IDR peak")
+	add_label_to_table("Peak")
+	add_label_to_table("Filtered peak")
+	add_label_to_table("Filtered gapped peak")
+	add_label_to_table("ATAQC")
+	add_label_to_table("IDR plot")
+	add_label_to_table("Unthresholded IDR peak")
+
+	// add label to graphviz (short name, long name)
+
+	for (int i=1; i<=50; i++) {
+		add_label_to_graph("rep$i", "Replicate $i")
+		add_label_to_graph("rep$i-pr1", "Pseudo-replicate 1 for rep. $i")
+		add_label_to_graph("rep$i-pr2", "Pseudo-replicate 2 for rep. $i")
+		add_label_to_graph("rep$i-pr", "Pseudo replicates for rep. $i")
+		for (int j=1; j<=20; j++) {
+			add_label_to_graph("rep$i-rep$j", "Rep. $i vs. Rep. $j")
+		}
+	}
+	add_label_to_graph("pooled_rep", "Pooled replicate")
+	add_label_to_graph("ppr", "Pooled pseudo-replicates")
+	add_label_to_graph("ppr1", "Pooled pseudo-replicate 1")
+	add_label_to_graph("ppr2", "Pooled pseudo-replicate 2")
+}
+
+
+/*************************************************************
+2. check the parameters
+*************************************************************/
+void chk_param() {
+
+	print( "\n== checking atac parameters ...\n" );
+	if ( has_input_fastq() ) chk_align_bwt2() // align_bowtie2 module 
+}
+
+/*************************************************************
+3. check the input files
+*************************************************************/
+// defined in input.bds
+
 
 /*************************************************************
 The alignment Part
@@ -213,7 +396,8 @@ void align_PE( int rep, int nth_rep ) {
 			"Alignment/$long/Bam" + (mapped_reads ? " ($mapped_reads)" : "") )
 	}
 
-	string filt_bam_, dup_qc_, pbc_qc_, flagstat_nodup_qc_
+       // filter bam 
+        string filt_bam_, dup_qc_, pbc_qc_, flagstat_nodup_qc_
 
 	if ( is_input_fastq( rep ) || is_input_bam( rep ) ) {
 
@@ -478,4 +662,15 @@ void call_peaks() {
 }
 
 
+/*************************************************************
+help function 
+*************************************************************/
 
+void help() {
+
+	if ( is_cmd_line_arg_empty() ) {
+
+		printHelp()
+		exit
+	}
+}
