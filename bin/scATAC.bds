@@ -18,7 +18,7 @@ min_read := 500                help cells with reads less than 'min_read' will b
 /*************************************************************
 global variables  
 *************************************************************/
- string tbam, cbam, tbam_nsort 
+string tbam, cbam, tbam_nsort, bam_nsort, bam_nsort_dedup
        
 
 /*************************************************************
@@ -34,6 +34,7 @@ void main(){
       correct_barcode()
       split_cell()
       dedup_cell()
+      merge_cell()
 }
 
 
@@ -44,6 +45,8 @@ void init () {
     tbam = "$prefix\_tmp/$prefix.umap.bam"
     cbam = "$prefix\_tmp/$prefix.umap.corrected.bam"
     tbam_nsort =  "$prefix\_tmp/$prefix.umap.corrected.nsorted.bam"
+    bam_nsort = "$prefix\_tmp/$prefix.umap.corrected.nsorted.bam"
+    bam_nsort_dedup = "$prefix\_tmp/$prefix.umap.corrected.nsorted.nodup.bam"
 }       
 
 # step  1. map using bowtie2 followed by filtering reads with MAPQ < 30 and inproperly mapped pairs;
@@ -65,7 +68,7 @@ void run_align (){
 #  Step 2. correct barcode error by allowing $max_barcode_mismatch mismatches;
 void correct_barcode(){
 
-    in := [tbam] ; out := [cbam]
+    in := [tbam] ; out := [cbam]; taskName := "Correct barcode"
     tid := task ( out <- in ) {
         sys samtools view -h $tbam                               \
         | scATAC_barcode_err_correct $max_barcode_mismatch $barcode_dir \
@@ -79,7 +82,7 @@ void correct_barcode(){
 
 void split_cell(){
     
-    in := [cbam]; out := [tbam_nsort] 
+    in := [cbam]; out := [tbam_nsort] ; taskName := "split cells"
     tid := task (out <- in) {
         sys samtools sort -n -@ $threads -m 1G $cbam -o $tbam_nsort
         sys mkdir -p  $prefix\_tmp/cells # create a tmp folder
@@ -108,7 +111,16 @@ void dedup_cell(){
    wait  
 }
 
+//rm $PREFIX\_tmp/cells/*.sam
 
+// Step 5. merge reads from different cells to a single file;
 
-#rm -r $PREFIX\_tmp/cells/*_tmp
-#rm $PREFIX\_tmp/cells/*.sam
+void merge_cell() {
+    in := ; out := [bam_nsort_dedup, bam_nsort] ;taskName := "Merge_cell"
+    tid:= task (out <- in) {
+        sys samtools cat -o $bam_nsort $PREFIX\_tmp/cells/*.sorted.bam
+        sys samtools cat -o $bam_nsort_dedup  $PREFIX\_tmp/cells/*.sorted.filtered.bam
+    }
+}
+
+#rm -r $PREFIX\_tmp/cells/
