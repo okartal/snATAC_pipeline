@@ -96,7 +96,8 @@ void split_cell(){
 #  Step 4. remove PCR duplication for each cell;
 void dedup_cell(){
     tmp := sys ls $prefix\_tmp/cells|grep .sam | sed "s/\.sam//g" ;
-    barcodes := tmp.split('\n'); barcodes.pop();
+    barcodes := tmp.split('\n')
+    if(barcodes.size()>0)    barcodes.pop();
     print ("total cell number is " + barcodes.size()+"\n" )
         
     for (int i=0;i< barcodes.size();i++){
