@@ -1,33 +1,81 @@
 #!/usr/bin/env bds
+/*************************************************************
+help 
+*************************************************************/
+help == scATAC pipeline settings
+       
+threads := 8                   help Set threads for Bowtie2 mapping, sorting and duplication removal [1].
+string r1                      help fastq.gz file that contains forward reads (only .gz allowed).
+string r2                      help fastq.gz file that contains reverse reads (only .gz allowed).
+string barcode_dir             help folder that contains r7_ATAC, i7_ATAC, i5_ATAC and r5_ATAC barcode.
+max_barcode_mismatch := 2      help max barcode mismatch allowed for barcode error correction [2].
+string mark_duplicate          help path to picard MarkDuplicates.jar [MarkDuplicates.jar].
+string prefix                  help prefix of output files.
+string bowtie2_idx             help Bowtie2 indexed reference genome.
+min_read := 500                help cells with reads less than 'min_read' will be filtered [500].
 
-# arguments
+
+/*************************************************************
+global variables  
+*************************************************************/
+       
+/*************************************************************
+main 
+*************************************************************/
+
+main()
+
+void main(){
+      run_align()
+      correct_barcode()
+      split_cell()      
+}
 
 
+/*************************************************************
+sub-steps  
+*************************************************************/
 
 # step  1. map using bowtie2 followed by filtering reads with MAPQ < 30 and inproperly mapped pairs;
+void run_align (){
+    
+    bam := "$prefix\_tmp/$prefix.umap.bam"
+    log := "$prefix.algn.log"
+    in := [ r1, r2 ]; out := [ bam ] #out := [ bam, log ]
+    cpus := threads; taskName := "Align & Filter"
 
-bam := "$PREFIX\_tmp/$PREFIX.umap.bam"
-log := "$PREFIX.algn.log"
+    tid := task ( out <- in ) {
+    sys bowtie2 -p $threads -t -X2000 --no-mixed --no-discordant --mm -x $bowtie2_idx -1 $r1 -2 $r2 2>$log  | samtools view -F 1804 -q 30 -bS - > $bam 
+    }
 
-in := [ R1, R2 ]; out := [ bam ] #out := [ bam, log ]
-cpus := THREADS; taskName := "Align & Filter"
-
-tid := task ( out <- in ) {
- sys bowtie2 -p $THREADS -t -X2000 --no-mixed --no-discordant --mm -x $GENOME -1 $R1 -2 $R2 2>$log  | samtools view -F 1804 -q 30 -bS - > $bam 
+    wait 
 }
 
-wait 
+#  Step 2. correct barcode error by allowing $max_barcode_mismatch mismatches;
+void correct_barcode(){
+    bam := "$prefix\_tmp/$prefix.umap.bam"
+    cbam := "$prefix\_tmp/$prefix.umap.corrected.bam"
+    in := [bam] ; out := [cbam]
 
-#  Step 2. correct barcode error by allowing $MAX_BARCODE_MISMATCH mismatches;
-cbam := "$PREFIX\_tmp/$PREFIX.umap.corrected.bam"
-in := [bam] ; out := [cbam]
+    tid := task ( out <- in ) {
+        sys samtools view -h $bam                               \
+        | scATAC_barcode_err_correct $max_barcode_mismatch $barcode_dir \
+        | samtools view -bS - > $cbam 
+    }
 
-tid := task ( out <- in ) {
-    sys samtools view -h $bam \
-| scATAC_barcode_err_correct $MAX_BARCODE_MISMATCH $BARCODE_DIR \
-| samtools view -bS - > $cbam 
+    wait
 }
 
+# Step 3. split reads to individual cells based on the barcode combination
 
-wait
+void split_cell(){
+    
+}    
+samtools sort -n -@ $THREADS -m 1G $PREFIX\_tmp/$PREFIX.umap.corrected.bam -o $PREFIX\_tmp/$PREFIX.umap.corrected.nsorted.bam
+if [ -d $PREFIX\_tmp/cells ]; then
+	rm -r $PREFIX\_tmp/cells
+fi
+mkdir $PREFIX\_tmp/cells # create a tmp folder
+samtools view -h $PREFIX\_tmp/$PREFIX.umap.corrected.nsorted.bam \
+| scATAC_decell $MIN_READ $PREFIX\_tmp/cells -
 
