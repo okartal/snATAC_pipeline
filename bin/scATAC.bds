@@ -18,7 +18,9 @@ min_read := 500                help cells with reads less than 'min_read' will b
 /*************************************************************
 global variables  
 *************************************************************/
+ string tbam, cbam, tbam_nsort 
        
+
 /*************************************************************
 main 
 *************************************************************/
@@ -26,26 +28,35 @@ main
 main()
 
 void main(){
+
+      init()
       run_align()
       correct_barcode()
-      split_cell()      
+      split_cell()
+      dedup_cell()
 }
 
 
 /*************************************************************
 sub-steps  
 *************************************************************/
+void init () {
+    tbam = "$prefix\_tmp/$prefix.umap.bam"
+    cbam = "$prefix\_tmp/$prefix.umap.corrected.bam"
+    tbam_nsort =  "$prefix\_tmp/$prefix.umap.corrected.nsorted.bam"
+}       
 
 # step  1. map using bowtie2 followed by filtering reads with MAPQ < 30 and inproperly mapped pairs;
 void run_align (){
     
-    bam := "$prefix\_tmp/$prefix.umap.bam"
+
     log := "$prefix.algn.log"
-    in := [ r1, r2 ]; out := [ bam ] #out := [ bam, log ]
+    in := [ r1, r2 ]; out := [ tbam ] 
     cpus := threads; taskName := "Align & Filter"
 
     tid := task ( out <- in ) {
-    sys bowtie2 -p $threads -t -X2000 --no-mixed --no-discordant --mm -x $bowtie2_idx -1 $r1 -2 $r2 2>$log  | samtools view -F 1804 -q 30 -bS - > $bam 
+        sys bowtie2 -p $threads -t -X2000 --no-mixed --no-discordant --mm \
+        -x $bowtie2_idx -1 $r1 -2 $r2 2>$log  | samtools view -F 1804 -q 30 -bS - > $tbam 
     }
 
     wait 
@@ -53,12 +64,10 @@ void run_align (){
 
 #  Step 2. correct barcode error by allowing $max_barcode_mismatch mismatches;
 void correct_barcode(){
-    bam := "$prefix\_tmp/$prefix.umap.bam"
-    cbam := "$prefix\_tmp/$prefix.umap.corrected.bam"
-    in := [bam] ; out := [cbam]
 
+    in := [tbam] ; out := [cbam]
     tid := task ( out <- in ) {
-        sys samtools view -h $bam                               \
+        sys samtools view -h $tbam                               \
         | scATAC_barcode_err_correct $max_barcode_mismatch $barcode_dir \
         | samtools view -bS - > $cbam 
     }
@@ -70,12 +79,36 @@ void correct_barcode(){
 
 void split_cell(){
     
+    in := [cbam]; out := [tbam_nsort] 
+    tid := task (out <- in) {
+        sys samtools sort -n -@ $threads -m 1G $cbam -o $tbam_nsort
+        sys mkdir -p  $prefix\_tmp/cells # create a tmp folder
+        sys samtools view -h $tbam_nsort \
+        | scATAC_decell $min_read $prefix\_tmp/cells -
+    }
+    wait 
 }    
-samtools sort -n -@ $THREADS -m 1G $PREFIX\_tmp/$PREFIX.umap.corrected.bam -o $PREFIX\_tmp/$PREFIX.umap.corrected.nsorted.bam
-if [ -d $PREFIX\_tmp/cells ]; then
-	rm -r $PREFIX\_tmp/cells
-fi
-mkdir $PREFIX\_tmp/cells # create a tmp folder
-samtools view -h $PREFIX\_tmp/$PREFIX.umap.corrected.nsorted.bam \
-| scATAC_decell $MIN_READ $PREFIX\_tmp/cells -
 
+
+#  Step 4. remove PCR duplication for each cell;
+void dedup_cell(){
+    tmp := sys ls $prefix\_tmp/cells|grep .sam | sed "s/\.sam//g" ;
+    barcodes := tmp.split('\n'); barcodes.pop();
+    print ("total cell number is " + barcodes.size()+"\n" )
+        
+    for (int i=0;i< barcodes.size();i++){
+        barcode := barcodes[i]
+        task {
+            sys echo "processing $i cell \n"
+            sys samtools view -bS $prefix\_tmp/cells/$barcode.sam       \
+            | samtools sort  - -o $prefix\_tmp/cells/$barcode.sorted.bam
+            sys samtools rmdup $prefix\_tmp/cells/$barcode.sorted.bam $prefix\_tmp/cells/$barcode.sorted.nodup.bam
+        }
+   }
+   wait  
+}
+
+
+
+#rm -r $PREFIX\_tmp/cells/*_tmp
+#rm $PREFIX\_tmp/cells/*.sam
