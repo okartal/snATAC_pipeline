@@ -49,7 +49,7 @@ main()
 
 void main() { 
 	init()
-	chk_input()
+	chk_input() 
 	chk_param(true_rep,false) // check if parameters are valid        
 	chk_adapters()            
 	align()

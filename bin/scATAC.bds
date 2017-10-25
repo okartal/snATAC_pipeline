@@ -1,0 +1,33 @@
+#!/usr/bin/env bds
+
+# arguments
+
+
+
+# step  1. map using bowtie2 followed by filtering reads with MAPQ < 30 and inproperly mapped pairs;
+
+bam := "$PREFIX\_tmp/$PREFIX.umap.bam"
+log := "$PREFIX.algn.log"
+
+in := [ R1, R2 ]; out := [ bam ] #out := [ bam, log ]
+cpus := THREADS; taskName := "Align & Filter"
+
+tid := task ( out <- in ) {
+ sys bowtie2 -p $THREADS -t -X2000 --no-mixed --no-discordant --mm -x $GENOME -1 $R1 -2 $R2 2>$log  | samtools view -F 1804 -q 30 -bS - > $bam 
+}
+
+wait 
+
+#  Step 2. correct barcode error by allowing $MAX_BARCODE_MISMATCH mismatches;
+cbam := "$PREFIX\_tmp/$PREFIX.umap.corrected.bam"
+in := [bam] ; out := [cbam]
+
+tid := task ( out <- in ) {
+    sys samtools view -h $bam \
+| scATAC_barcode_err_correct $MAX_BARCODE_MISMATCH $BARCODE_DIR \
+| samtools view -bS - > $cbam 
+}
+
+
+wait
+

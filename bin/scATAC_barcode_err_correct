@@ -8,7 +8,7 @@ def min_dist(s, sl):
     """ return the string with min edit distance """
     ss = sl[:]
     if len(s) == 0: sys.exit("error(min_dist): inquiry string has length 0")
-    if len(ss) == 0: sys.exit("error(min_dist): inquiry string list has 0 elements")
+    if len(ss) == 0: sys.exit("error(min_dist): ref string lib has 0 elements")
     if ([len(s) == len(sj) for sj in ss].count(False) > 0): sys.exit("error(min_dist): different string length")
     dists = [[a == b for (a,b) in zip(s, sj)].count(False) for sj in ss]
     min_value = min(dists)
