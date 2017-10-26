@@ -24,16 +24,16 @@ string tbam, cbam, tbam_nsort, bam_nsort, bam_nsort_dedup
 /*************************************************************
 main 
 *************************************************************/
-
+include "./chk_cell.bds"
+       
 main()
 
 void main(){
-
       init()
       run_align()
       correct_barcode()
       split_cell()
-      dedup_cell()
+      if(chk_cell())       dedup_cell()
       merge_cell()
 }
 
@@ -81,7 +81,6 @@ void correct_barcode(){
 # Step 3. split reads to individual cells based on the barcode combination
 
 void split_cell(){
-    
     in := [cbam]; out := [tbam_nsort] ; taskName := "split cells"
     tid := task (out <- in) {
         sys samtools sort -n -@ $threads -m 1G $cbam -o $tbam_nsort
@@ -93,7 +92,10 @@ void split_cell(){
 }    
 
 
+
+
 #  Step 4. remove PCR duplication for each cell;
+
 void dedup_cell(){
     tmp := sys ls $prefix\_tmp/cells|grep .sam | sed "s/\.sam//g" ;
     barcodes := tmp.split('\n')
@@ -109,19 +111,20 @@ void dedup_cell(){
             sys samtools rmdup $prefix\_tmp/cells/$barcode.sorted.bam $prefix\_tmp/cells/$barcode.sorted.nodup.bam
         }
    }
-   wait  
+   wait
+  sys rm $prefix\_tmp/cells/*.sam       
 }
 
-//rm $PREFIX\_tmp/cells/*.sam
 
-// Step 5. merge reads from different cells to a single file;
+
+# Step 5. merge reads from different cells to a single file;
 
 void merge_cell() {
-    in := ; out := [bam_nsort_dedup, bam_nsort] ;taskName := "Merge_cell"
-    tid:= task (out <- in) {
-        sys samtools cat -o $bam_nsort $PREFIX\_tmp/cells/*.sorted.bam
-        sys samtools cat -o $bam_nsort_dedup  $PREFIX\_tmp/cells/*.sorted.filtered.bam
+        taskName := "Merge_cell"
+    tid:= task{
+        sys samtools cat -o $bam_nsort $prefix\_tmp/cells/*.sorted.bam
+        sys samtools cat -o $bam_nsort_dedup  $prefix\_tmp/cells/*.sorted.filtered.bam
     }
 }
 
-#rm -r $PREFIX\_tmp/cells/
+#rm -r $prefix\_tmp/cells/

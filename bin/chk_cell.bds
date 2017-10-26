@@ -1,0 +1,53 @@
+#!/usr/bin/env bds
+
+int count_file (string folder, string filetype){
+    f_no := sys ls  $folder | grep $filetype | wc -l
+        return (f_no.parseInt())
+}
+
+
+int{} chk_cell(string dir_cell){
+    
+    int{} each_file_no  = {"sam"=> 0, "sorted.bam" => 0 , "nodup.bam"=> 0}    
+    
+    for (string k : each_file_no.keys()){
+        each_file_no{k} = count_file(dir_cell,k)
+        print (k + "'s number:" + each_file_no{k} + "\n")
+        }
+
+    return(each_file_no)
+
+ }
+
+bool chk_cell(){
+    dir_cell := "/home/zhc268/scratch/others/p56.rep1/p56.rep1_tmp/cells"    
+    int{} each_file_no = chk_cell(dir_cell)
+    print (each_file_no{"sam"}+" chk_cell running \n")
+    #return (each_file_no{"sam"} == 0 ? false : true)
+              if (each_file_no{"sam"} == 0){
+                  return (false)
+              } else{
+                  return (true) 
+              }
+}
+
+
+
+/*int{} each_file_no = chk_cell()
+for (string k : each_file_no.keys()){
+     print (k + "'s number:" + each_file_no{k} + "\n")
+
+ }*/
+          
+/*
+bool run_flag=chk_cell()
+    print ("run_flag is $run_flag \n")
+    
+if( run_flag) {
+    print ("run \n")
+        }
+else {
+    print ("not run\n")
+ }
+
+*/
