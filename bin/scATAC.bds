@@ -53,7 +53,7 @@ void init () {
     bam_nsort_dedup = "$prefix\_tmp/$prefix.umap.corrected.nsorted.nodup.bam"
     bam_nsort_dedup_stat = "$prefix\_tmp/$prefix.umap.corrected.nsorted.nodup.stat"
     bam_nsort_dedup_filtered="$prefix\_tmp/$prefix.umap.corrected.nsorted.nodup.filtered.bam"
-    bam_gsort_dedup_filtered="prefix\_tmp/$prefix.umap.corrected.nsorted.nodup.filtered.gsorted.bam"         
+    bam_gsort_dedup_filtered="$prefix\_tmp/$prefix.umap.corrected.nsorted.nodup.filtered.gsorted.bam"         
 }       
 
 # step  1. map using bowtie2 followed by filtering reads with MAPQ < 30 and inproperly mapped pairs;
@@ -89,6 +89,7 @@ void correct_barcode(){
 
 void split_cell(){
     in := [cbam]; out := [tbam_nsort] ; taskName := "split cells"
+    cpus:=threads
     tid := task (out <- in) {
         sys samtools sort -n -@ $threads -m 1G $cbam -o $tbam_nsort
         sys mkdir -p  $prefix\_tmp/cells # create a tmp folder
@@ -163,7 +164,7 @@ void filter_cell(){
 void sort_by_g(){
      taskName := "sort_by_genomic_coordinates"
      in := [bam_nsort_dedup_filtered]
-     out := [bam_gsort_dedup_filtered]
+     out := [bam_gsort_dedup_filtered]; cpus:= threads
      tid := task(out <- in ){
           sys samtools sort -@ $threads -m 1G $bam_nsort_dedup_filtered  -o $bam_gsort_dedup_filtered 
       }    
