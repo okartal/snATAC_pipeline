@@ -1,7 +1,4 @@
-single-cell / single nuclei ATAC-seq  pipeline 
-===================================================
-
-# Installation
+## Get Started     
 
 ```bash
 $ git clone https://github.com/r3fang/scATAC.git
@@ -12,9 +9,19 @@ $ scATAC_debarcode -a data/demo_ATAC.I1.gz -b data/demo_ATAC.I2.gz -c data/demo_
 	     | gzip - > demo_ATAC.decomplex.R1.fastq.gz
 $ scATAC_debarcode -a data/demo_ATAC.I1.gz -b data/demo_ATAC.I2.gz -c data/demo_ATAC.R2.gz \
 	     | gzip - > demo_ATAC.decomplex.R2.fastq.gz
+$ scATAC -t 2 \
+         -f demo_ATAC.decomplex.R1.fastq.gz \
+         -r demo_ATAC.decomplex.R2.fastq.gz \
+		 -b ./barcodes \
+		 -d 2 \
+		 -p Picard/MarkDuplicates.jar \
+		 -n demo_atac \
+		 -g hg19.fa \
+		 -m 500
 ```
 
 ## conda install 
+
 Run `bash ./install_dependencies.sh` to generate `bds_scATAC` environment to encapsulate dependent softwares. 
 
 
@@ -25,7 +32,7 @@ Run `bash ./install_dependencies.sh` to generate `bds_scATAC` environment to enc
 - [Python 2.7+](https://www.python.org/download/releases/2.7/)
 - [bedtools](http://bedtools.readthedocs.io/en/latest/)
 - [MACS2](https://github.com/taoliu/MACS) (OPTIONAL: needed only for peak calling)
-- [Numpy](http://www.numpy.org/) (OPTIONAL: needed only for generating accessible binary matrix])
+- [Numpy](http://www.numpy.org/) (OPTIONAL: needed only for generating accessible binary matrix)
 
 ## Introduction
 
@@ -146,9 +153,4 @@ Note: To use scATAC, you need to first decomplex barcode combination and integra
 
 ## Licence
 MIT
-
-
-
-# Usage
-
 
