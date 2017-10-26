@@ -60,7 +60,7 @@ void init () {
     # logging
         
     log_file="$prefix.log"
-    sys echo "================================ Parameters ==================================" 2>&1 | tee -a $log_file
+    sys echo "================================ Parameters ==================================" 2>&1 | tee $log_file
     sys echo "START: (`date`)"        | tee -a $log_file
     sys echo THREADS=$threads 2>&1 | tee -a $log_file
     sys echo R1=$r1 2>&1 | tee -a $log_file
@@ -171,7 +171,7 @@ void filter_cell_gsort(){
      taskName := "filter_cell_gsort";  cpus:= threads
      in := [bam_nsort_dedup, bam_nsort_dedup_stat]
      out := [bam_gsort_dedup_filtered]
-     tid := task(out <- in && !bam_final.exists()  ){
+     tid := task( out <- in , !bam_final.exists()){
           sys samtools view -h $bam_nsort_dedup \
           | scATAC_rm_cell_with_low_cov $min_read $bam_nsort_dedup_stat - \
           | samtools view -bS - > $bam_nsort_dedup_filtered
