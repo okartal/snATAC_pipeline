@@ -18,8 +18,8 @@ min_read := 500                help cells with reads less than 'min_read' will b
 /*************************************************************
 global variables  
 *************************************************************/
-string tbam, cbam, tbam_nsort, bam_nsort, bam_nsort_dedup
-       
+string tbam, cbam, tbam_nsort, bam_nsort, bam_nsort_dedup,bam_nsort_dedup_stat
+string bam_nsort_dedup_filtered, bam_gsort_dedup_filtered       
 
 /*************************************************************
 main 
@@ -35,6 +35,9 @@ void main(){
       split_cell()
       if(chk_cell())       dedup_cell()
       merge_cell()
+      gen_barcode_freq()
+      filter_cell()
+      sort_by_g()
 }
 
 
@@ -42,11 +45,15 @@ void main(){
 sub-steps  
 *************************************************************/
 void init () {
+
     tbam = "$prefix\_tmp/$prefix.umap.bam"
     cbam = "$prefix\_tmp/$prefix.umap.corrected.bam"
     tbam_nsort =  "$prefix\_tmp/$prefix.umap.corrected.nsorted.bam"
     bam_nsort = "$prefix\_tmp/$prefix.umap.corrected.nsorted.bam"
     bam_nsort_dedup = "$prefix\_tmp/$prefix.umap.corrected.nsorted.nodup.bam"
+    bam_nsort_dedup_stat = "$prefix\_tmp/$prefix.umap.corrected.nsorted.nodup.stat"
+    bam_nsort_dedup_filtered="$prefix\_tmp/$prefix.umap.corrected.nsorted.nodup.filtered.bam"
+    bam_gsort_dedup_filtered="prefix\_tmp/$prefix.umap.corrected.nsorted.nodup.filtered.gsorted.bam"         
 }       
 
 # step  1. map using bowtie2 followed by filtering reads with MAPQ < 30 and inproperly mapped pairs;
@@ -112,18 +119,91 @@ void dedup_cell(){
         }
    }
    wait
-  sys rm $prefix\_tmp/cells/*.sam       
+  sys rm $prefix\_tmp/cells/*.sam
 }
 
 
 
-# Step 5. merge reads from different cells to a single file;
+# Step 5. merge reads from different cells to a single file
 void merge_cell() {
         taskName := "Merge_cell"
-    tid:= task{
+    tid:= task(!bam_nsort_dedup.exists()){
         sys samtools cat -o $bam_nsort $prefix\_tmp/cells/*.sorted.bam
         sys samtools cat -o $bam_nsort_dedup  $prefix\_tmp/cells/*.sorted.nodup.bam
     }
 }
 
 #rm -r $prefix\_tmp/cells/
+
+# Step 6. generate barcode frequency
+void gen_barcode_freq(){
+    taskName := "gen_barcode_freq";
+    in := [bam_nsort_dedup]; out := [bam_nsort_dedup_stat]
+    tid:= task (out <- in) {
+        sys samtools view $bam_nsort_dedup \
+          | awk '{split($1,a,":"); print a[1]}' | sort | uniq -c | awk '{print $2, $1}' \
+          | sort -k2rn - > $bam_nsort_dedup_stat
+    }
+}
+
+# Step 7. filter cells with low reads less than $MIN_READ reads
+
+void filter_cell(){
+     taskName := "filter_cell"
+     in := [bam_nsort_dedup, bam_nsort_dedup_stat]
+     out := [bam_nsort_dedup_filtered]
+     tid := task(out <- in ){
+          sys samtools view -h $bam_nsort_dedup \
+          | scATAC_rm_cell_with_low_cov $min_read $bam_nsort_dedup_stat - \
+          | samtools view -bS - > $bam_nsort_dedup_filtered
+     }
+}
+
+# Step 8. sort by genomic coordinates
+void sort_by_g(){
+     taskName := "sort_by_genomic_coordinates"
+     in := [bam_nsort_dedup_filtered]
+     out := [bam_gsort_dedup_filtered]
+     tid := task(out <- in ){
+          sys samtools sort -@ $threads -m 1G $bam_nsort_dedup_filtered  -o $bam_gsort_dedup_filtered 
+      }    
+}
+
+
+# Step 9. Summarize 
+/*TOTAL_READS=$(zcat $R1 | wc -l | awk '{print $1}')
+UNIQ_READS=$(samtools view $PREFIX\_tmp/$PREFIX.umap.bam | wc -l | awk '{print $1}')
+BARCODE_CORRECTED_READS=$(samtools view $PREFIX\_tmp/$PREFIX.umap.corrected.bam | wc -l | awk '{print $1}')
+BEFORE_PICARD_READS=$(samtools view $PREFIX\_tmp/$PREFIX.umap.corrected.nsorted.bam | wc -l | awk '{print $1}')
+AFTER_PICARD_READS=$(samtools view $PREFIX\_tmp/$PREFIX.umap.corrected.nsorted.nodup.bam | wc -l | awk '{print $1}')
+TOTAL_CELLS=$(awk -v cutoff="$MIN_READ" '{if ($2 > cutoff) print }' $PREFIX\_tmp/$PREFIX.umap.corrected.nsorted.nodup.stat | wc -l | awk '{print $1}')
+FINAL_READS=$(samtools view $PREFIX\_tmp/$PREFIX.umap.corrected.nsorted.nodup.filtered.gsorted.bam | wc -l | awk '{print $1}')
+TOTAL_BARCODE=$(samtools view $PREFIX\_tmp/$PREFIX.umap.corrected.bam | awk '{split($1,a,":"); print a[1]}' | sort | uniq -c | wc -l | awk '{print $1}')
+
+echo " (`date`) Step 10. clean up;" 2>&1 | tee -a $PREFIX.log
+echo "================================ Summary ==================================" 2>&1 | tee -a $PREFIX.log
+echo "Total number of raw reads: $((TOTAL_READS/4))" 2>&1 | tee -a $PREFIX.log
+echo "Uniquely mapped reads (MAPQ>=30): $UNIQ_READS" 2>&1 | tee -a $PREFIX.log
+echo "Reads left after barcode correction: $BARCODE_CORRECTED_READS" 2>&1 | tee -a $PREFIX.log
+echo "Uniquely barcode combinations: $TOTAL_BARCODE" 2>&1 | tee -a $PREFIX.log
+echo "Estimated PCR duplication rate: $(echo "scale=2; ($BEFORE_PICARD_READS - $AFTER_PICARD_READS) / $BEFORE_PICARD_READS * 100"| bc -l)%" 2>&1 | tee -a $PREFIX.log
+echo "Total number of reads left: $FINAL_READS" 2>&1 | tee -a $PREFIX.log
+echo "Number of cells with more than $MIN_READ reads: $TOTAL_CELLS" 2>&1 | tee -a $PREFIX.log
+
+sort -k2,2n $PREFIX\_tmp/$PREFIX.umap.corrected.nsorted.nodup.stat \
+| awk -v cutoff="$MIN_READ" '{if ($2 > cutoff) print $2}' \
+| awk '
+function max(x){i=0;for(val in x){if(i<=x[val]){i=x[val];}}return i;}
+function min(x){i=max(x);for(val in x){if(i>x[val]){i=x[val];}}return i;}
+{
+     a[x++]=$1
+     b[$1]++
+}
+END{
+	print "Min number of reads for selected cells: "min(a) 
+    print "Median number of reads for selected cells: "a[int((x-1)/2)] 
+    print "Max number of reads for selected cells: "max(a)
+}' 2>&1 | tee -a $PREFIX.log
+mv $PREFIX\_tmp/$PREFIX.umap.corrected.nsorted.nodup.filtered.gsorted.bam $PREFIX.bam
+#rm -r $PREFIX\_tmp
+*/
