@@ -36,8 +36,7 @@ void main(){
       if(chk_cell())       dedup_cell()
       merge_cell()
       gen_barcode_freq()
-      filter_cell()
-      sort_by_g()
+      filter_cell_gsort()
 }
 
 
@@ -149,27 +148,17 @@ void gen_barcode_freq(){
 
 # Step 7. filter cells with low reads less than $MIN_READ reads
 
-void filter_cell(){
-     taskName := "filter_cell"
-     in := [bam_nsort_dedup, bam_nsort_dedup_stat]
+void filter_cell_gsort(){
+     taskName := "filter_cell_gsort";  cpus:= threads
+     in := [bam_nsort_dedup, bam_nsort_dedup_stat, bam_gsort_dedup_filtered]
      out := [bam_nsort_dedup_filtered]
      tid := task(out <- in ){
           sys samtools view -h $bam_nsort_dedup \
           | scATAC_rm_cell_with_low_cov $min_read $bam_nsort_dedup_stat - \
           | samtools view -bS - > $bam_nsort_dedup_filtered
+          sys samtools sort -@ $threads -m 1G $bam_nsort_dedup_filtered  -o $bam_gsort_dedup_filtered 
      }
 }
-
-# Step 8. sort by genomic coordinates
-void sort_by_g(){
-     taskName := "sort_by_genomic_coordinates"
-     in := [bam_nsort_dedup_filtered]
-     out := [bam_gsort_dedup_filtered]; cpus:= threads
-     tid := task(out <- in ){
-          sys samtools sort -@ $threads -m 1G $bam_nsort_dedup_filtered  -o $bam_gsort_dedup_filtered 
-      }    
-}
-
 
 # Step 9. Summarize 
 /*TOTAL_READS=$(zcat $R1 | wc -l | awk '{print $1}')
