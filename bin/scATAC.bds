@@ -111,8 +111,8 @@ void correct_barcode(){
 void split_cell(){
     taskName := "split cells"
     cpus:=threads
-    tid := task () {
-        if (bam_nsort <- cbam)  sys samtools sort -n -@ $threads -m 1G $cbam -o $bam_nsort
+        tid := task(bam_nsort <- cbam){
+          sys samtools sort -n -@ $threads -m 1G $cbam -o $bam_nsort
         sys mkdir -p  $prefix\_tmp/cells # create a tmp folder
         sys samtools view -h $bam_nsort \
         | scATAC_decell $min_read $prefix\_tmp/cells -
@@ -121,7 +121,7 @@ void split_cell(){
 }    
 
 #  Step 4. remove PCR duplication for each cell;
-void  dedup_cell(string barcode,int i){
+void  dedup_cell(){
     task(taskName:="dedup_cell",cpus:=threads){
         sys dedup_cell.sh $prefix $threads
     }

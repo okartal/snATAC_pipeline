@@ -4,7 +4,7 @@
 seq_dir="/home/zhc268/scratch/seqdata/P56/demultiplexed/"
 prefix="p56.rep1"
 WORKDIR="/home/zhc268/scratch/others/"
-OUTDIR="${WORKDIR}/${prefix}_test"
+OUTDIR="${WORKDIR}/${prefix}_test2"
 
 fastq1="${seq_dir}${prefix}.R1.fastq.gz"
 fastq2="${seq_dir}${prefix}.R2.fastq.gz"
