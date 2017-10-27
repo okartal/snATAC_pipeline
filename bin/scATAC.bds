@@ -96,6 +96,7 @@ void run_align (){
 void correct_barcode(){
 
     in := [tbam] ; out := [cbam]; taskName := "Correct barcode"
+    cpus := threads; taskName := "Align & Filter"                                     
     tid := task ( out <- in ) {
         sys samtools view -h $tbam                               \
         | scATAC_barcode_err_correct $max_barcode_mismatch $barcode_dir \
@@ -119,25 +120,20 @@ void split_cell(){
     wait 
 }    
 
-
-
-
 #  Step 4. remove PCR duplication for each cell;
+void dedup_cell(string barcode){
+    sys samtools view -bS $prefix\_tmp/cells/$barcode.sam               \
+        | samtools sort  - -o $prefix\_tmp/cells/$barcode.sorted.bam
+    sys samtools rmdup $prefix\_tmp/cells/$barcode.sorted.bam $prefix\_tmp/cells/$barcode.sorted.nodup.bam
+}
 
 void dedup_cell(){
     tmp := sys ls $prefix\_tmp/cells|grep .sam | sed "s/\.sam//g" ;
     barcodes := tmp.split('\n')
     if(barcodes.size()>0)    barcodes.pop();
-    print ("total cell number is " + barcodes.size()+"\n" )
-        
-     pid:= par {
-        for (int i=0;i< barcodes.size();i++){
-        barcode := barcodes[i]
-            sys echo "processing $i cell \n"
-            sys samtools view -bS $prefix\_tmp/cells/$barcode.sam       \
-            | samtools sort  - -o $prefix\_tmp/cells/$barcode.sorted.bam
-            sys samtools rmdup $prefix\_tmp/cells/$barcode.sorted.bam $prefix\_tmp/cells/$barcode.sorted.nodup.bam
-     }}
+    for (int i=0;i< barcodes.size();i++){
+        par dedup_cell(barcodes[i])
+     }
    wait
   sys rm $prefix\_tmp/cells/*.sam
 }

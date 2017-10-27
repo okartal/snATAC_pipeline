@@ -20,7 +20,7 @@ int{} chk_cell(string dir_cell){
  }
 
 bool chk_cell(){
-    dir_cell := "/home/zhc268/scratch/others/p56.rep1/p56.rep1_tmp/cells"    
+    dir_cell := "$prefix\_tmp/cells"
     int{} each_file_no = chk_cell(dir_cell)
     print (each_file_no{"sam"}+" chk_cell running \n")
     #return (each_file_no{"sam"} == 0 ? false : true)
