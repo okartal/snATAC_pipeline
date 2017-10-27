@@ -1,3 +1,4 @@
+
 #!/bin/bash
 
 seq_dir="/home/zhc268/scratch/seqdata/P56/demultiplexed/"
@@ -16,6 +17,6 @@ mkdir -p $OUTDIR
 
 cd $OUTDIR
 
-scATAC.bds -v -threads 8 -r1 $fastq1 -r2 $fastq2 -barcode_dir $barcode  -make_barcode_mismatch 2 \
+scATAC.bds -v  -reportYaml -dryRun -threads 8 -r1 $fastq1 -r2 $fastq2 -barcode_dir $barcode  -make_barcode_mismatch 2 \
        -mark_duplicate $(which picard) -bowtie2_idx $genome -prefix $prefix -min_read 500 
 
