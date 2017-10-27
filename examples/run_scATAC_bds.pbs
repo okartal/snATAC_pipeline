@@ -1,11 +1,11 @@
 #!/bin/bash
+#PBS -V
 #PBS -q home
 #PBS -N scATAC-p56
-#PBS -l nodes=1:ppn=$ncore
+#PBS -l nodes=1:ppn=15
 #PBS -l walltime=16:00:00
 #PBS -o /home/zhc268/logs/scATAC_p56.out
 #PBS -e /home/zhc268/logs/scATAC_p56.err
-#PBS -V
 #PBS -M zhangc518@gmail.com
 #PBS -m abe
 #PBS -A epigen-group
@@ -25,6 +25,6 @@ source activate bds_scATAC
 mkdir -p $OUTDIR
 
 cd $OUTDIR
-scATAC.bds -v -threads $ncore -r1 $fastq1 -r2 $fastq2 -barcode_dir $barcode  -make_barcode_mismatch 2 \
+scATAC.bds -v -threads ${PBS_NUM_PPN} -r1 $fastq1 -r2 $fastq2 -barcode_dir $barcode  -make_barcode_mismatch 2 \
        -mark_duplicate $(which picard) -bowtie2_idx $genome -prefix $prefix -min_read 500 
 

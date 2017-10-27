@@ -71,6 +71,10 @@ void init () {
     sys echo PREFIX=$prefix 2>&1 | tee -a $log_file
     sys echo GENOME=$bowtie2_idx 2>&1 | tee -a $log_file
     sys echo MIN_READ=$min_read 2>&1 | tee -a $log_file
+
+    # folders
+    tmp_folder:="$prefix\_tmp" 
+    sys mkdir -p $tmp_folder
 }       
 
 # step  1. map using bowtie2 followed by filtering reads with MAPQ < 30 and inproperly mapped pairs;
@@ -126,15 +130,14 @@ void dedup_cell(){
     if(barcodes.size()>0)    barcodes.pop();
     print ("total cell number is " + barcodes.size()+"\n" )
         
-    for (int i=0;i< barcodes.size();i++){
+     pid:= par {
+        for (int i=0;i< barcodes.size();i++){
         barcode := barcodes[i]
-        task {
             sys echo "processing $i cell \n"
             sys samtools view -bS $prefix\_tmp/cells/$barcode.sam       \
             | samtools sort  - -o $prefix\_tmp/cells/$barcode.sorted.bam
             sys samtools rmdup $prefix\_tmp/cells/$barcode.sorted.bam $prefix\_tmp/cells/$barcode.sorted.nodup.bam
-        }
-   }
+     }}
    wait
   sys rm $prefix\_tmp/cells/*.sam
 }
