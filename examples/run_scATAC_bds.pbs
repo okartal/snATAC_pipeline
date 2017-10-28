@@ -13,10 +13,10 @@
 seq_dir="/home/zhc268/scratch/seqdata/P56/demultiplexed/"
 prefix="p56.1M"
 WORKDIR="/home/zhc268/scratch/others/"
-OUTDIR="${WORKDIR}/${prefix}_test"
+OUTDIR="${WORKDIR}/${prefix}_test1"
 
-fastq1="${seq_dir}${prefix}.r1.fastq.gz"
-fastq2="${seq_dir}${prefix}.r2.fastq.gz"
+fastq1="${seq_dir}${prefix}.r1.fastq.gz" 
+fastq2="${seq_dir}${prefix}.r2.fastq.gz" 
 barcode="/home/zhc268/data/software/scATAC/barcodes/"
 #genome="/projects/ps-epigen/GENOME/hg19/bowtie2_index/male.hg19.fa"
 genome="/projects/ps-epigen/GENOME/mm10/bowtie2_index/mm10_no_alt_analysis_set_ENCODE.fasta"
@@ -25,5 +25,9 @@ source activate bds_scATAC
 mkdir -p $OUTDIR
 
 cd $OUTDIR
-scATAC.bds  -threads ${PBS_NUM_PPN} -r1 $fastq1 -r2 $fastq2 -barcode_dir $barcode  -make_barcode_mismatch 2 \
+fastqc $fastq1 -d $OUTDIR&
+fastqc $fastq2 -d $OUTDIR&
+wait 
+
+scATAC.bds -v -threads ${PBS_NUM_PPN} -r1 $fastq1 -r2 $fastq2 -barcode_dir $barcode  -make_barcode_mismatch 2 \
        -mark_duplicate $(which picard) -bowtie2_idx $genome -prefix $prefix -min_read 50
