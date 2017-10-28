@@ -17,8 +17,8 @@ export PATH="$PATH:/projects/ps-epigen/software/.bds/"
 export PICARDROOT="/projects/ps-epigen/software/miniconda3/envs/bds_atac/share/picard-1.126-4/"
 ```
 ## For other user 
-1. Install conda 
-2. install bds
+1. Install conda: check https://github.com/kundajelab/atac_dnase_pipelines#conda
+2. install bds: check https://github.com/kundajelab/atac_dnase_pipelines#bigdatascript
 3. Run `bash ./install_dependencies.sh` to generate `bds_scATAC` environment to encapsulate dependent softwares. 
     
 # Usage 

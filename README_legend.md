@@ -20,11 +20,6 @@ $ scATAC -t 2 \
 		 -m 500
 ```
 
-## conda install 
-
-Run `bash ./install_dependencies.sh` to generate `bds_scATAC` environment to encapsulate dependent softwares. 
-
-
 ## Requirements
 
 - [bwa](https://github.com/lh3/bwa)
