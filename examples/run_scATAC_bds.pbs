@@ -1,22 +1,22 @@
 #!/bin/bash
 #PBS -V
 #PBS -q home
-#PBS -N scATAC-p56
+#PBS -N scATAC-p56-1M
 #PBS -l nodes=1:ppn=15
 #PBS -l walltime=16:00:00
-#PBS -o /home/zhc268/logs/scATAC_p56.out
-#PBS -e /home/zhc268/logs/scATAC_p56.err
+#PBS -o /home/zhc268/logs/scATAC_p56_1M.out
+#PBS -e /home/zhc268/logs/scATAC_p56_1M.err
 #PBS -M zhangc518@gmail.com
 #PBS -m abe
 #PBS -A epigen-group
 
 seq_dir="/home/zhc268/scratch/seqdata/P56/demultiplexed/"
-prefix="p56.rep${PBS_ARRAYID}"
+prefix="p56.1M"
 WORKDIR="/home/zhc268/scratch/others/"
-OUTDIR="${WORKDIR}/${prefix}_test2"
+OUTDIR="${WORKDIR}/${prefix}_test"
 
-fastq1="${seq_dir}${prefix}.R1.fastq.gz"
-fastq2="${seq_dir}${prefix}.R2.fastq.gz"
+fastq1="${seq_dir}${prefix}.r1.fastq.gz"
+fastq2="${seq_dir}${prefix}.r2.fastq.gz"
 barcode="/home/zhc268/data/software/scATAC/barcodes/"
 #genome="/projects/ps-epigen/GENOME/hg19/bowtie2_index/male.hg19.fa"
 genome="/projects/ps-epigen/GENOME/mm10/bowtie2_index/mm10_no_alt_analysis_set_ENCODE.fasta"
@@ -25,6 +25,5 @@ source activate bds_scATAC
 mkdir -p $OUTDIR
 
 cd $OUTDIR
-scATAC.bds -v -noReportHtml -reportYaml -threads ${PBS_NUM_PPN} -r1 $fastq1 -r2 $fastq2 -barcode_dir $barcode  -make_barcode_mismatch 2 \
-       -mark_duplicate $(which picard) -bowtie2_idx $genome -prefix $prefix -min_read 500 
-
+scATAC.bds  -threads ${PBS_NUM_PPN} -r1 $fastq1 -r2 $fastq2 -barcode_dir $barcode  -make_barcode_mismatch 2 \
+       -mark_duplicate $(which picard) -bowtie2_idx $genome -prefix $prefix -min_read 50
