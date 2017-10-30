@@ -15,9 +15,7 @@ Single-cell / single nuclei ATAC-seq  pipeline
 
 
 
-!!! **For the old version of the shell scripts, check the legend README [here](./README_legend.md).**
-
-Below is the use of this pipeline wrappered using bigdatascript (bds) language.
+!!! **For the old version of the shell scripts, check the legend README [here](./README_legend.md).** Below is the use of this pipeline wrappered using bigdatascript (bds) language. 
 
 # Installation
 ## For tscc user
@@ -60,14 +58,15 @@ Check the `pbs` files in the `\examples` folder.
 ## Input 
 Currently it run start from the fastq files after decomplex and demultiplex. 
 
+
 ## Output 
 * scATAC generates two files '.log' and '.bam'. '.bam' is the final file that contains all usable reads and '.log' includes data metrics.
-* Also, pipeline will generate a report html named like `scATAC.bds.20171028_022747_846.report.*`. It contains all the information for your run. 
+* Also, pipeline will generate a report html named like `scATAC.bds.20171028_022747_846.report.*`. It contains all the information about your run. 
+# Features
 
-An example timeline in your report:
-![timeline](./examples/timeline_eg.png)
+* Timeline for running. An example timeline in your report: ![timeline](./examples/timeline_eg.png)
 
-
+* Resume from last failed point just rerun the script. 
 
 # Licence
 MIT
