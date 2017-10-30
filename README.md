@@ -64,8 +64,8 @@ Currently it run start from the fastq files after decomplex and demultiplex.
 * Also, pipeline will generate a report html named like `scATAC.bds.20171028_022747_846.report.*`. It contains all the information about your run. 
 # Features
 
-* Timeline for running. An example timeline in your report: ![timeline](./examples/timeline_eg.png)
-* Detailed reports on each steps, including cmd, input, output and stderr and etc.   
+* Timeline for each run. An example timeline in your report: ![timeline](./examples/timeline_eg.png)
+* Detailed reports on each steps, including cmd, input, output and stderr and etc. 
 * Resume from last failed point just rerun the script. 
 
 # Licence
