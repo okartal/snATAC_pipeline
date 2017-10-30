@@ -67,7 +67,7 @@ Currently it run start from the fastq files after decomplex and demultiplex.
 * Timeline for each run. An example timeline in your report: ![timeline](./examples/timeline_eg.png)
 * Detailed reports on each steps, including cmd, input, output and stderr and etc. 
 * Resume from last failed point just rerun the script. 
-
+* Through `conda`, it is easy to be installed in any machine. 
 # Licence
 MIT
 
