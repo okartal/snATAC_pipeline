@@ -38,6 +38,7 @@ export PICARDROOT="/projects/ps-epigen/software/miniconda3/envs/bds_atac/share/p
     
 # Usage 
 ``` shell
+$ conda activate bds_scATAC # activate conda env
 $ scATAC.bds -help
 Picked up _JAVA_OPTIONS: -Xms256M -Xmx728M -XX:ParallelGCThreads=1
 == scATAC pipeline settings
@@ -53,7 +54,8 @@ Picked up _JAVA_OPTIONS: -Xms256M -Xmx728M -XX:ParallelGCThreads=1
 ```
 
 ## For tscc user 
-Check the `pbs` files in the `\examples` folder. 
+Check the `pbs` files in the `\examples` folder.
+
 
 ## Input 
 Currently it run start from the fastq files after decomplex and demultiplex. 
