@@ -1,19 +1,36 @@
 Single-cell / single nuclei ATAC-seq  pipeline 
 ===================================================
-!!! For the old version of the shell scripts, check the legend README [here](./README_legend.md). 
+
+**scATAC** is made of following steps:
+
+0. decomplex scATAC-seq data by scATAC_debarcode [OPTIONAL];
+1. map using bwa followed by filtering reads with MAPQ < 10;
+2. correct barcode error caused by sequencing error by allowing certain number of mismatches [2];
+3. split reads to individual cells based on the barcode combination;
+4. remove PCR duplication for each cell;
+6. merge reads from different cells;
+7. generate barcode frequency table;
+8. filter cells with reads counts less than given number [500];
+9. summerize and generate a log file;
+
+
+
+!!! **For the old version of the shell scripts, check the legend README [here](./README_legend.md). **
 
 Below is the use of this pipeline wrappered using bigdatascript (bds) language.
 
 # Installation
 ## For tscc user
 
-The dependent softwares and libs are installed in a conda enrionment that can directly be loaded. 
-Add the following into your `~/.bashrc`
+No installation is necessary. The dependent softwares and libs are installed in a conda enrionment that can directly be loaded. 
+Add the following into your `~/.bashrc`. Then `. ~/.bashrc` and test by using `scATAC.bds -help`, 
+
 ```bash
 export PATH=/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.31-1.b13.el6_6.x86_64/bin:$PATH
 export PATH="$PATH:/projects/ps-epigen/software/miniconda3/bin/"
 export _JAVA_OPTIONS="-Xms256M -Xmx728M -XX:ParallelGCThreads=1"
 export PATH="$PATH:/projects/ps-epigen/software/.bds/"
+export PATH="$PATH:/projects/ps-epigen/software/scATAC/bin"
 export PICARDROOT="/projects/ps-epigen/software/miniconda3/envs/bds_atac/share/picard-1.126-4/"
 ```
 ## For other user 
