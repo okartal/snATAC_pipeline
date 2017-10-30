@@ -7,7 +7,7 @@ Single-cell / single nuclei ATAC-seq  pipeline
 1. map using bowtie2 followed by filtering reads with MAPQ < 30; (*currently using bowtie2*)
 2. correct barcode error caused by sequencing error by allowing certain number of mismatches [2];
 3. split reads to individual cells based on the barcode combination;
-4. remove PCR duplication for each cell; (*currently using `samtools rmdup`)
+4. remove PCR duplication for each cell; (*currently using `samtools rmdup`*)
 6. merge reads from different cells;
 7. generate barcode frequency table;
 8. filter cells with reads counts less than given number [500];
