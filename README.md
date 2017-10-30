@@ -15,7 +15,7 @@ Single-cell / single nuclei ATAC-seq  pipeline
 
 
 
-!!! **For the old version of the shell scripts, check the legend README [here](./README_legend.md). **
+!!! **For the old version of the shell scripts, check the legend README [here](./README_legend.md).**
 
 Below is the use of this pipeline wrappered using bigdatascript (bds) language.
 

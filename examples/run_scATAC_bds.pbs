@@ -10,9 +10,9 @@
 #PBS -m abe
 #PBS -A epigen-group
 
-seq_dir="./examples"
+seq_dir="/projects/ps-epigen/software/scATAC/examples"
 prefix="p56.1M"
-WORKDIR="/home/zhc268/scratch/others/" 
+WORKDIR="~" 
 OUTDIR="${WORKDIR}/${prefix}_test1"
 
 fastq1="${seq_dir}${prefix}.r1.fastq.gz" 
@@ -31,3 +31,5 @@ wait
 
 scATAC.bds -v -threads ${PBS_NUM_PPN} -r1 $fastq1 -r2 $fastq2 -barcode_dir $barcode  -make_barcode_mismatch 2 \
        -mark_duplicate $(which picard) -bowtie2_idx $genome -prefix $prefix -min_read 50
+
+
