@@ -4,10 +4,10 @@ Single-cell / single nuclei ATAC-seq  pipeline
 **scATAC** is made of following steps:
 
 0. decomplex scATAC-seq data by scATAC_debarcode [OPTIONAL];
-1. map using bwa followed by filtering reads with MAPQ < 10;
+1. map using bowtie2 followed by filtering reads with MAPQ < 30; (*currently using bowtie2*)
 2. correct barcode error caused by sequencing error by allowing certain number of mismatches [2];
 3. split reads to individual cells based on the barcode combination;
-4. remove PCR duplication for each cell;
+4. remove PCR duplication for each cell; (*currently using `samtools rmdup`)
 6. merge reads from different cells;
 7. generate barcode frequency table;
 8. filter cells with reads counts less than given number [500];
@@ -65,7 +65,7 @@ Currently it run start from the fastq files after decomplex and demultiplex.
 # Features
 
 * Timeline for running. An example timeline in your report: ![timeline](./examples/timeline_eg.png)
-
+* Detailed reports on each steps, including cmd, input, output and stderr and etc.   
 * Resume from last failed point just rerun the script. 
 
 # Licence
