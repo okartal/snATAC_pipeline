@@ -1,0 +1,3 @@
+[submodule "scATAC"]
+	path = scATAC
+	url = https://github.com/r3fang/scATAC
